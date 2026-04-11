@@ -1,0 +1,21 @@
+{
+  "name": "CCS.CharacterController.Editor",
+  "rootNamespace": "CCS.CharacterController.Editor",
+  "references": [
+    "CCS.CharacterController.Runtime",
+    "CCS.Branding.Editor",
+    "Unity.InputSystem",
+    "Unity.Cinemachine"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

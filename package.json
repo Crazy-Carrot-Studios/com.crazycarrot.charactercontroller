@@ -1,0 +1,27 @@
+{
+  "name": "com.crazycarrot.charactercontroller",
+  "version": "0.1.0",
+  "displayName": "CCS Character Controller (BaseLocomotion)",
+  "description": "Baseline milestone: third-person CharacterController locomotion, Cinemachine 3 rig, Character Setup Wizard, default camera profile (CCS_Default_TP_Follow_CameraProfile), and CCS_Base_locomotion_controller with CCS_AnimatorDriver. Not feature-complete; not combat-ready; advanced systems are not included.",
+  "unity": "6000.0",
+  "documentationUrl": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller",
+  "changelogUrl": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/blob/main/CHANGELOG.md",
+  "licensesUrl": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller",
+  "dependencies": {
+    "com.crazycarrot.branding": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.branding.git",
+    "com.unity.cinemachine": "3.1.6",
+    "com.unity.inputsystem": "1.8.0"
+  },
+  "keywords": [
+    "character",
+    "controller",
+    "locomotion",
+    "third-person",
+    "cinemachine",
+    "base-locomotion"
+  ],
+  "author": {
+    "name": "Crazy Carrot Studios",
+    "url": "https://github.com/Crazy-Carrot-Studios"
+  }
+}
