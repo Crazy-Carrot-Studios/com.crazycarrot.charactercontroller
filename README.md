@@ -26,13 +26,11 @@ Add to `Packages/manifest.json`:
 "com.crazycarrot.branding": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.branding.git"
 ```
 
-Or pin a revision:
+Or pin this baseline tag:
 
 ```json
-"com.crazycarrot.charactercontroller": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller.git#v0.1.0"
+"com.crazycarrot.charactercontroller": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller.git#v0.1.0-base-locomotion"
 ```
-
-(Unity: use a tag or commit hash after you tag the release.)
 
 ## Layout
 
