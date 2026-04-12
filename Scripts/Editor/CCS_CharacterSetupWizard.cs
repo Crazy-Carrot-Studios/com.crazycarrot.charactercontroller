@@ -549,6 +549,13 @@ namespace CCS.CharacterController.Editor
                         modelOffsetRootGo.transform,
                         modelInstance.transform,
                         playerRoot);
+                    FitCharacterMotorToVisualBounds(
+                        motor,
+                        playerRoot.transform,
+                        visuals.transform,
+                        enableWizardDebugLogs,
+                        playerRoot);
+                    AdjustCameraTargetsForMotorHeight(follow.transform, look.transform, motor);
                     animSetup = ResolveConfigureLocomotionAnimatorAndLog(
                         modelOffsetRootGo.transform,
                         modelInstance.transform,
@@ -1148,6 +1155,140 @@ namespace CCS.CharacterController.Editor
 
             lowestLocalY = minY;
             return true;
+        }
+
+        /// <summary>
+        /// Sizes the Unity <see cref="UnityEngine.CharacterController"/> to the visual mesh after grounding so new projects
+        /// do not keep a fixed 2 m capsule that clips or floats relative to non-standard Humanoids.
+        /// </summary>
+        private static void FitCharacterMotorToVisualBounds(
+            UnityEngine.CharacterController motor,
+            Transform playerRoot,
+            Transform characterVisualsRoot,
+            bool logDebug,
+            Object context)
+        {
+            if (motor == null || playerRoot == null || characterVisualsRoot == null)
+            {
+                return;
+            }
+
+            Renderer[] renderers = characterVisualsRoot.GetComponentsInChildren<Renderer>(true);
+            if (renderers == null || renderers.Length == 0)
+            {
+                return;
+            }
+
+            Matrix4x4 worldToPlayer = playerRoot.worldToLocalMatrix;
+            float minY = float.MaxValue;
+            float maxY = float.MinValue;
+            float minX = float.MaxValue;
+            float maxX = float.MinValue;
+            float minZ = float.MaxValue;
+            float maxZ = float.MinValue;
+            Vector3[] corners = new Vector3[8];
+
+            for (int r = 0; r < renderers.Length; r++)
+            {
+                Bounds bounds = renderers[r].bounds;
+                Vector3 min = bounds.min;
+                Vector3 max = bounds.max;
+                corners[0] = new Vector3(min.x, min.y, min.z);
+                corners[1] = new Vector3(min.x, min.y, max.z);
+                corners[2] = new Vector3(min.x, max.y, min.z);
+                corners[3] = new Vector3(min.x, max.y, max.z);
+                corners[4] = new Vector3(max.x, min.y, min.z);
+                corners[5] = new Vector3(max.x, min.y, max.z);
+                corners[6] = new Vector3(max.x, max.y, min.z);
+                corners[7] = new Vector3(max.x, max.y, max.z);
+
+                for (int c = 0; c < 8; c++)
+                {
+                    Vector3 lp = worldToPlayer.MultiplyPoint3x4(corners[c]);
+                    if (lp.y < minY)
+                    {
+                        minY = lp.y;
+                    }
+
+                    if (lp.y > maxY)
+                    {
+                        maxY = lp.y;
+                    }
+
+                    if (lp.x < minX)
+                    {
+                        minX = lp.x;
+                    }
+
+                    if (lp.x > maxX)
+                    {
+                        maxX = lp.x;
+                    }
+
+                    if (lp.z < minZ)
+                    {
+                        minZ = lp.z;
+                    }
+
+                    if (lp.z > maxZ)
+                    {
+                        maxZ = lp.z;
+                    }
+                }
+            }
+
+            float spanY = maxY - minY;
+            if (spanY < 0.35f)
+            {
+                return;
+            }
+
+            const float verticalPadding = 0.16f;
+            float height = Mathf.Clamp(spanY + verticalPadding, 1.15f, 3.45f);
+            float centerY = minY + height * 0.5f;
+
+            float extentX = (maxX - minX) * 0.5f;
+            float extentZ = (maxZ - minZ) * 0.5f;
+            float radius = Mathf.Clamp(Mathf.Max(extentX, extentZ) * 0.48f, 0.22f, 0.55f);
+
+            Undo.RecordObject(motor, "Fit CharacterController to character visuals");
+            motor.height = height;
+            motor.center = new Vector3(0f, centerY, 0f);
+            motor.radius = radius;
+            motor.skinWidth = Mathf.Clamp(radius * 0.12f, 0.05f, 0.1f);
+
+            if (logDebug)
+            {
+                Debug.Log(
+                    "[CCS_CharacterSetupWizard] CharacterController fit to render bounds: height="
+                    + height.ToString("F2")
+                    + ", center.y="
+                    + centerY.ToString("F2")
+                    + ", radius="
+                    + radius.ToString("F2")
+                    + ".",
+                    context);
+            }
+        }
+
+        /// <summary>
+        /// Moves follow/look targets on the player root so Cinemachine framing tracks the fitted capsule height.
+        /// </summary>
+        private static void AdjustCameraTargetsForMotorHeight(
+            Transform follow,
+            Transform look,
+            UnityEngine.CharacterController motor)
+        {
+            if (follow == null || look == null || motor == null)
+            {
+                return;
+            }
+
+            float bottomY = motor.center.y - motor.height * 0.5f;
+            float eyeY = Mathf.Clamp(bottomY + motor.height * 0.82f, 1.05f, 2.35f);
+            follow.localPosition = new Vector3(0f, eyeY, 0f);
+            Vector3 lookLocal = look.localPosition;
+            look.localPosition = new Vector3(lookLocal.x, eyeY, lookLocal.z);
         }
 
         // Adds CCS_AnimatorDriver on the player root and wires character + locomotion Animator references.

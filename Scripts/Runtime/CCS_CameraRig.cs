@@ -57,7 +57,7 @@ namespace CCS.CharacterController
         // When assigned and Apply Profile On Awake is true, pushes lens, orbit, damping, and mouse speed from the asset.
         private CCS_CameraProfile cameraProfile;
 
-        [Tooltip("When true, Awake applies cameraProfile to Cinemachine (if profile is assigned).")]
+        [Tooltip("When true, Awake applies tuning from cameraProfile (or an in-memory baseline if no asset is assigned). When false, vcam lens/orbit values are left as authored; orbit mouse gains still apply.")]
         [SerializeField]
         // Disable to drive the vcam entirely from the inspector without profile reapplication.
         private bool applyProfileOnAwake = true;
@@ -71,9 +71,6 @@ namespace CCS.CharacterController
 
         // Vertical orbit gain magnitude relative to horizontal (matches prior wizard asymmetry).
         private const float MouseOrbitVerticalGainRatio = 0.875f;
-
-        // One-time hint when the rig runs with no profile and apply-on-awake disabled (manual tuning path).
-        private static bool s_warnedMissingCameraProfile;
 
         // One-time notice when play mode uses an in-memory baseline profile (no asset reference).
         private static bool s_warnedRuntimeInMemoryCameraProfile;
@@ -101,19 +98,23 @@ namespace CCS.CharacterController
         {
             ApplyCinemachineTargets();
 
-            if (applyProfileOnAwake)
+            // Always synthesize baseline data when no asset is assigned so imported scenes / prefabs never hit a
+            // null-profile path (orbit gains and optional ApplyProfile still behave predictably).
+            if (cameraProfile == null)
             {
-                if (cameraProfile == null)
+                cameraProfile = CCS_CameraProfile.CreateBaselineDefaultsInstance();
+                if (applyProfileOnAwake)
                 {
-                    cameraProfile = CCS_CameraProfile.CreateBaselineDefaultsInstance();
                     WarnRuntimeInMemoryCameraProfileOnce();
                 }
+            }
 
+            if (applyProfileOnAwake)
+            {
                 ApplyProfile();
             }
             else
             {
-                WarnMissingCameraProfileOnce();
                 ApplyOrbitMouseGains();
             }
 
@@ -270,23 +271,6 @@ namespace CCS.CharacterController
         #endregion
 
         #region Private Methods
-
-        // Logs once when apply-on-awake is off and no profile is assigned (manual tuning path).
-        private void WarnMissingCameraProfileOnce()
-        {
-            if (applyProfileOnAwake || cameraProfile != null || s_warnedMissingCameraProfile)
-            {
-                return;
-            }
-
-            s_warnedMissingCameraProfile = true;
-            Debug.LogWarning(
-                "[CCS_CameraRig] No camera profile assigned. Assign a CCS_CameraProfile "
-                + "(default: CCS_Default_TP_Follow_CameraProfile in "
-                + CCS_CharacterControllerPackagePaths.PackageId
-                + ") or disable Apply Profile On Awake and tune manually.",
-                this);
-        }
 
         private void WarnRuntimeInMemoryCameraProfileOnce()
         {
