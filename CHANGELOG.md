@@ -4,6 +4,12 @@ All notable changes to this package are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.8-preview.1] — 2026-04-12
+
+### Fixed
+
+- **`CCS_CameraProfile.CreateBaselineDefaultsInstance`**: optional **`objectName`** parameter (default `null`) so **`CCS_CameraProfileAssetUtility`** recreation matches the call site; fixes **CS1501** on Hub bootstrap / new projects.
+
 ## [0.1.7-preview.1] — 2026-04-12
 
 ### Changed
@@ -55,6 +61,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Phase 1 Report**: clearer lines for chosen path, reuse vs create, locomotion controller target path.
 - **README**: shortened Hub-style; note that **TestLocomotion** material `.meta` errors are from the **Hub template**, not this package.
 
+[0.1.8-preview.1]: https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/compare/v0.1.7-preview.1...v0.1.8-preview.1
 [0.1.7-preview.1]: https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/compare/v0.1.6-preview.1...v0.1.7-preview.1
 [0.1.6-preview.1]: https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/compare/v0.1.5-preview.1...v0.1.6-preview.1
 [0.1.5-preview.1]: https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/compare/v0.1.4-preview.1...v0.1.5-preview.1

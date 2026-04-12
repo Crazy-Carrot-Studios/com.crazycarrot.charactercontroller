@@ -73,9 +73,10 @@ namespace CCS.CharacterController
         public int priority = 20;
 
         /// <summary>
-        /// Creates a runtime instance with the same tuning as <c>CCS_Default_TP_Follow_CameraProfile</c> (for editor repair / factory).
+        /// Creates a runtime instance with the same tuning as <c>CCS_Default_TP_Follow_CameraProfile</c> (for editor repair / factory / play-mode fallback).
         /// </summary>
-        public static CCS_CameraProfile CreateBaselineDefaultsInstance()
+        /// <param name="objectName">Optional <see cref="Object.name"/>; when null or empty, uses the standard default asset name.</param>
+        public static CCS_CameraProfile CreateBaselineDefaultsInstance(string objectName = null)
         {
             CCS_CameraProfile profile = CreateInstance<CCS_CameraProfile>();
             profile.fieldOfView = 58f;
@@ -94,7 +95,9 @@ namespace CCS.CharacterController
             profile.composerTargetOffset = Vector3.zero;
             profile.mouseOrbitSpeed = 0.26f;
             profile.priority = 20;
-            profile.name = "CCS_Default_TP_Follow_CameraProfile";
+            profile.name = string.IsNullOrEmpty(objectName)
+                ? "CCS_Default_TP_Follow_CameraProfile"
+                : objectName;
             return profile;
         }
     }
