@@ -72,8 +72,11 @@ namespace CCS.CharacterController
         // Vertical orbit gain magnitude relative to horizontal (matches prior wizard asymmetry).
         private const float MouseOrbitVerticalGainRatio = 0.875f;
 
-        // One-time hint when the rig runs with no profile and apply-on-awake enabled.
+        // One-time hint when the rig runs with no profile and apply-on-awake disabled (manual tuning path).
         private static bool s_warnedMissingCameraProfile;
+
+        // One-time notice when play mode uses an in-memory baseline profile (no asset reference).
+        private static bool s_warnedRuntimeInMemoryCameraProfile;
 
         #endregion
 
@@ -98,8 +101,14 @@ namespace CCS.CharacterController
         {
             ApplyCinemachineTargets();
 
-            if (applyProfileOnAwake && cameraProfile != null)
+            if (applyProfileOnAwake)
             {
+                if (cameraProfile == null)
+                {
+                    cameraProfile = CCS_CameraProfile.CreateBaselineDefaultsInstance();
+                    WarnRuntimeInMemoryCameraProfileOnce();
+                }
+
                 ApplyProfile();
             }
             else
@@ -262,10 +271,10 @@ namespace CCS.CharacterController
 
         #region Private Methods
 
-        // Logs once if apply-on-awake is enabled but no profile is assigned (scenes can still use manual inspector values).
+        // Logs once when apply-on-awake is off and no profile is assigned (manual tuning path).
         private void WarnMissingCameraProfileOnce()
         {
-            if (!applyProfileOnAwake || cameraProfile != null || s_warnedMissingCameraProfile)
+            if (applyProfileOnAwake || cameraProfile != null || s_warnedMissingCameraProfile)
             {
                 return;
             }
@@ -276,6 +285,20 @@ namespace CCS.CharacterController
                 + "(default: CCS_Default_TP_Follow_CameraProfile in "
                 + CCS_CharacterControllerPackagePaths.PackageId
                 + ") or disable Apply Profile On Awake and tune manually.",
+                this);
+        }
+
+        private void WarnRuntimeInMemoryCameraProfileOnce()
+        {
+            if (s_warnedRuntimeInMemoryCameraProfile)
+            {
+                return;
+            }
+
+            s_warnedRuntimeInMemoryCameraProfile = true;
+            Debug.LogWarning(
+                "[CCS_CameraRig] No CCS_CameraProfile asset on this rig; using in-memory baseline tuning for this play session. "
+                + "Assign the package default profile in the Inspector (or open the Character Controller wizard once) so the asset persists.",
                 this);
         }
 

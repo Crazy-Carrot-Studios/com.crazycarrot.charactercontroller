@@ -4,6 +4,22 @@ All notable changes to this package are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.2-preview.1] — 2026-04-11
+
+**Preview** — Phase: **Basic Locomotion** (same baseline scope; setup hardening + docs).
+
+### Added
+
+- Editor **camera profile health pass** (script rebind / recreate), **`CCS_CameraRigEditor`** default-profile bind, **runtime in-memory baseline** on `CCS_CameraRig` when no profile asset is assigned and Apply On Awake is on.
+- **Animator selection**: tiered pick (Humanoid valid Avatar → any valid Avatar → fallback), enabled preference, hierarchy order; new Animator on **ModelOffsetRoot** if none; **`[CCS] Phase 1 Report`** includes **Animator Path**.
+
+### Changed
+
+- **README** simplified for developers (version, phase, Git install URL).
+- Wizard **validation** messages for Avatar (explicit `[CCS]` warnings). Visual ground align uses **ModelOffsetRoot** local Y; no Avatar auto-assignment from imports.
+
+[0.1.2-preview.1]: https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/compare/v0.1.1-preview.1...v0.1.2-preview.1
+
 ## [0.1.1-preview.1] — 2026-04-10
 
 **Preview / test build** — same baseline scope as 0.1.0 (basic locomotion only). Improves Humanoid-friendly setup when importing into **fresh projects** (e.g. via Hub).

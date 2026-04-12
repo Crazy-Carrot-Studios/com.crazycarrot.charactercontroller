@@ -1,55 +1,28 @@
-# com.crazycarrot.charactercontroller
+# CCS Character Controller
 
-**Current package version: see `package.json` (latest test build: `0.1.1-preview.1`).**
+**Version:** `0.1.2-preview.1` (authoritative: `package.json`)  
+**Phase:** **Basic Locomotion** — third-person move, Cinemachine camera, Humanoid-oriented wizard. Not combat-ready. Not feature-complete.
 
-**0.1.0** was the **Base Controller / BaseLocomotion** baseline tag (`v0.1.0-base-locomotion`). **0.1.1-preview.1** is a **preview test build** for Hub / fresh-project validation: **Humanoid Phase 1** wizard improvements, compatibility reporting, camera profile binding fixes, and visual alignment — still **baseline locomotion only**, **not** combat-ready, **not** feature-complete.
+Third-person **CharacterController** locomotion, **Cinemachine 3** rig, **Character Setup Wizard**, default camera profile and **CCS_Base_locomotion_controller** (root motion off).
 
-Unity package: third-person **CharacterController** locomotion, **Cinemachine 3** orbit camera rig, **Character Setup Wizard**, default **CCS_Default_TP_Follow_CameraProfile**, default **CCS_Base_locomotion_controller** with **CCS_AnimatorDriver** (root motion off).
+## Unity: install from Git
 
-## Scope (baseline + preview)
-
-- Base controller + camera-relative move (Input System)
-- Basic third-person Cinemachine rig + default camera profile support
-- Setup wizard: player + rig + Humanoid-oriented model setup (Animator/Avatar reuse, `ModelOffsetRoot`, ground align) + animator driver wiring
-- **Preview:** Console **Phase 1 compatibility report** after create; menu to **recreate** default camera profile if import binding breaks
-- BaseLocomotion animator parameters driven from gameplay state
-
-## Not included / not promised
-
-- Combat, advanced animation layers, networking, full input feature set beyond baseline maps
-
-## Install
-
-Add to `Packages/manifest.json`:
+Add to **`Packages/manifest.json`** inside `"dependencies"`:
 
 ```json
 "com.crazycarrot.charactercontroller": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller.git",
 "com.crazycarrot.branding": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.branding.git"
 ```
 
-Or pin a **release / test** tag (examples):
+Optional — pin this preview build:
 
 ```json
-"com.crazycarrot.charactercontroller": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller.git#v0.1.0-base-locomotion"
+"com.crazycarrot.charactercontroller": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller.git#v0.1.2-preview.1"
 ```
 
-```json
-"com.crazycarrot.charactercontroller": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller.git#v0.1.1-preview.1"
-```
+- **Unity:** 6 (`6000.0+`). **Input System** + **Cinemachine 3** versions are listed in `package.json`.
+- **Wizard:** **CCS → Character Controller → Create Character**
+- **Repo:** [github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller](https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller)
+- **Changelog:** [CHANGELOG.md](CHANGELOG.md)
 
-Omit the `#tag` fragment to follow **`main`** (latest commits).
-
-## Layout
-
-- **UPM path:** `Packages/com.crazycarrot.charactercontroller/`
-- **Embedded dev path:** `Assets/CCS/CharacterController/` is also detected for `AssetDatabase` resolution.
-
-## Wizard
-
-Menu: **CCS → Character Controller → Create Character**
-
-## Requirements
-
-- Unity 6 (`6000.0+` recommended)
-- Input System, Cinemachine 3 (see `package.json` dependencies)
-- `com.crazycarrot.branding` (wizard UI base)
+If you copy the package into **`Assets/`** (e.g. Hub), keep every **`.meta`** file so camera profile assets keep the correct script GUIDs.

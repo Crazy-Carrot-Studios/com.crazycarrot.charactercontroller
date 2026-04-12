@@ -89,14 +89,15 @@ namespace CCS.CharacterController.Editor
             public Animator Animator;
             public bool ReusedExistingAnimator;
             public bool LocomotionControllerAssigned;
+            public string AnimatorPathFromPlayer;
         }
 
         private struct GroundAlignOutcome
         {
             public bool HadRenderableBounds;
             public bool OffsetApplied;
-            public float DeltaAppliedWorldUp;
-            public bool SkippedAlreadyAligned;
+            public float LocalYOffsetApplied;
+            public bool SkippedNearZero;
         }
 
         // Shown in the window title bar and CCS banner.
@@ -106,6 +107,8 @@ namespace CCS.CharacterController.Editor
         protected override void OnEnable()
         {
             base.OnEnable();
+            CCS_CameraProfileAssetUtility.RunCameraProfileHealthPass(this);
+
             if (inputActionsAsset == null)
             {
                 inputActionsAsset = AssetDatabase.LoadAssetAtPath<InputActionAsset>(
@@ -117,8 +120,6 @@ namespace CCS.CharacterController.Editor
                 cameraProfile = AssetDatabase.LoadAssetAtPath<CCS_CameraProfile>(
                     CCS_CharacterControllerPackagePaths.ResolvedDefaultThirdPersonFollowCameraProfilePath);
             }
-
-            CCS_CameraProfileAssetUtility.LogIfDefaultProfileAssetBroken(this);
 
             if (locomotionController == null)
             {
@@ -213,6 +214,7 @@ namespace CCS.CharacterController.Editor
                     return;
                 }
 
+                CCS_CameraProfileAssetUtility.RunCameraProfileHealthPass(this);
                 WarnIfDefaultPackageAssetsMissing();
                 LogResolvedCameraProfileForCreate();
 
@@ -342,8 +344,6 @@ namespace CCS.CharacterController.Editor
                     + ". Assign a profile in the wizard or restore the asset.",
                     this);
             }
-
-            CCS_CameraProfileAssetUtility.LogIfDefaultProfileAssetBroken(this);
 
             if (locomotionController == null
                 && AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(
@@ -530,23 +530,22 @@ namespace CCS.CharacterController.Editor
                 if (modelInstance != null)
                 {
                     modelInstanceCreated = true;
-                    animSetup = ResolveConfigureLocomotionAnimatorAndLog(
-                        modelInstance.transform,
-                        modelInstance,
-                        playerRoot,
-                        expectHumanoidBaseline: true);
-                    groundOutcome = AlignModelOffsetToCapsuleGround(
-                        motor,
+                    groundOutcome = AlignModelOffsetForVisualGrounding(
                         modelOffsetRootGo.transform,
                         modelInstance.transform,
                         playerRoot);
+                    animSetup = ResolveConfigureLocomotionAnimatorAndLog(
+                        modelOffsetRootGo.transform,
+                        modelInstance.transform,
+                        playerRoot,
+                        expectHumanoidBaseline: true);
                 }
             }
             else
             {
                 animSetup = ResolveConfigureLocomotionAnimatorAndLog(
                     modelOffsetRootGo.transform,
-                    modelOffsetRootGo,
+                    modelOffsetRootGo.transform,
                     playerRoot,
                     expectHumanoidBaseline: false);
             }
@@ -577,20 +576,21 @@ namespace CCS.CharacterController.Editor
         }
 
         private LocomotionAnimatorSetupResult ResolveConfigureLocomotionAnimatorAndLog(
-            Transform modelHierarchyRoot,
-            GameObject modelInstanceRoot,
+            Transform modelOffsetRoot,
+            Transform modelHierarchySearchRoot,
             GameObject playerRoot,
             bool expectHumanoidBaseline)
         {
             LocomotionAnimatorSetupResult result = default;
-            if (modelHierarchyRoot == null)
+            if (modelOffsetRoot == null || modelHierarchySearchRoot == null || playerRoot == null)
             {
                 return result;
             }
 
-            Animator animator = ResolveBestAnimatorOnModel(
-                modelHierarchyRoot,
-                enableWizardDebugLogs,
+            Animator animator = PickBestLocomotionAnimator(
+                modelHierarchySearchRoot,
+                modelOffsetRoot,
+                playerRoot,
                 out bool reusedExistingAnimator);
             if (animator == null)
             {
@@ -599,24 +599,16 @@ namespace CCS.CharacterController.Editor
 
             result.Animator = animator;
             result.ReusedExistingAnimator = reusedExistingAnimator;
-
-            if (modelInstanceRoot != null)
-            {
-                TryAssignHumanoidAvatarFromImportedSource(animator, modelInstanceRoot);
-            }
+            result.AnimatorPathFromPlayer = BuildTransformPathRelativeTo(animator.transform, playerRoot.transform);
 
             if (animator.avatar == null || !animator.avatar.isValid)
             {
-                Debug.LogWarning(
-                    "[CCS_CharacterSetupWizard] Locomotion Animator on '"
-                    + animator.name
-                    + "' has no valid Avatar. Phase-1 baseline expects a Humanoid rig on the model import.",
-                    animator);
+                Debug.LogWarning("[CCS] Animator has no Avatar assigned.", animator);
             }
             else if (!animator.avatar.isHuman)
             {
                 Debug.LogWarning(
-                    "[CCS_CharacterSetupWizard] Animator Avatar is valid but not Humanoid. CCS base locomotion is built for Humanoid retargeting; use Animation Type Humanoid on the FBX/prefab or expect broken poses.",
+                    "[CCS] Avatar is not Humanoid. Base locomotion requires Humanoid.",
                     animator);
             }
             else if (enableWizardDebugLogs)
@@ -690,122 +682,62 @@ namespace CCS.CharacterController.Editor
             }
 
             Animator anim = animSetup.Animator;
-            bool avatarValid = anim != null && anim.avatar != null && anim.avatar.isValid;
-            bool humanoid = avatarValid && anim.avatar.isHuman;
+            bool humanoidReady = anim != null
+                && anim.avatar != null
+                && anim.avatar.isValid
+                && anim.avatar.isHuman;
 
             CCS_CameraProfile profile = ResolveEffectiveCameraProfile();
+            string defaultProfilePath = CCS_CharacterControllerPackagePaths.ResolvedDefaultThirdPersonFollowCameraProfilePath;
+            bool cameraProfileValid = profile != null;
             RuntimeAnimatorController locController = ResolveEffectiveLocomotionController();
 
-            StringBuilder sb = new StringBuilder(512);
-            sb.AppendLine("[CCS Character Controller] Phase 1 compatibility report (Humanoid baseline):");
-            sb.Append("  • Source model: ");
-            if (!modelPrefabSlotUsed)
-            {
-                sb.AppendLine("none (empty visual hierarchy — assign a Humanoid prefab for gameplay)");
-            }
-            else if (!modelInstanceCreated)
-            {
-                sb.AppendLine("prefab assigned but instantiation failed — see error above");
-            }
-            else
-            {
-                sb.AppendLine("prefab instantiated under CharacterVisuals/ModelOffsetRoot");
-            }
-            sb.Append("  • Animator: ");
-            if (anim == null)
-            {
-                sb.AppendLine("missing");
-            }
-            else
-            {
-                sb.Append(animSetup.ReusedExistingAnimator ? "reused existing on '" : "created new on '");
-                sb.Append(anim.name);
-                sb.Append("' (path from player: ");
-                sb.Append(BuildTransformPathRelativeTo(anim.transform, playerRoot.transform));
-                sb.AppendLine(")");
-            }
+            string animatorLine = anim == null
+                ? "missing"
+                : animSetup.ReusedExistingAnimator
+                    ? "reused"
+                    : "created";
 
-            sb.Append("  • Avatar: ");
-            if (!avatarValid)
-            {
-                sb.AppendLine("missing or invalid");
-            }
-            else
-            {
-                sb.Append("valid, ");
-                sb.Append(humanoid ? "Humanoid" : "not Humanoid (generic/other)");
-                sb.Append(", '");
-                sb.Append(anim.avatar.name);
-                sb.AppendLine("'");
-            }
+            string avatarLine = humanoidReady ? "valid humanoid" : "invalid";
 
-            sb.Append("  • Mesh bounds / ground align: ");
-            if (!groundOutcome.HadRenderableBounds)
-            {
-                sb.AppendLine("no Renderer bounds (skipped vertical align)");
-            }
-            else if (groundOutcome.SkippedAlreadyAligned)
-            {
-                sb.AppendLine("bounds OK, mesh bottom already matched capsule bottom");
-            }
-            else if (groundOutcome.OffsetApplied)
-            {
-                sb.Append("applied ModelOffsetRoot delta ");
-                sb.Append(groundOutcome.DeltaAppliedWorldUp.ToString("F3"));
-                sb.AppendLine(" m (world up)");
-            }
-            else
-            {
-                sb.AppendLine("unknown state");
-            }
+            string cameraLine = cameraProfileValid
+                ? "valid"
+                : "failed to load";
 
-            sb.Append("  • Locomotion controller: ");
-            if (locController == null)
-            {
-                sb.AppendLine("not resolved — assign in wizard or restore package default");
-            }
-            else if (anim == null)
-            {
-                sb.Append("resolved '");
-                sb.Append(locController.name);
-                sb.AppendLine("' but no Animator to bind (assign a Humanoid model)");
-            }
-            else if (animSetup.LocomotionControllerAssigned)
-            {
-                sb.Append("resolved and assigned '");
-                sb.Append(locController.name);
-                sb.AppendLine("' to Animator");
-            }
-            else
-            {
-                sb.Append("resolved '");
-                sb.Append(locController.name);
-                sb.AppendLine("' — not assigned; see earlier warnings");
-            }
+            string locoLine = locController != null && anim != null && animSetup.LocomotionControllerAssigned
+                ? "assigned"
+                : "missing";
 
-            sb.Append("  • Camera profile: ");
-            if (profile == null)
-            {
-                sb.AppendLine("not resolved — assign in wizard or recreate default profile asset");
-            }
-            else
-            {
-                sb.Append("resolved '");
-                sb.Append(profile.name);
-                sb.Append("' at ");
-                sb.AppendLine(AssetDatabase.GetAssetPath(profile));
-            }
+            string groundLine = !groundOutcome.HadRenderableBounds
+                ? "skipped"
+                : groundOutcome.OffsetApplied
+                    ? "applied"
+                    : "skipped";
 
             bool expectHumanoidReady = modelInstanceCreated;
             bool blocking =
                 (modelPrefabSlotUsed && !modelInstanceCreated)
-                || (expectHumanoidReady && !humanoid)
-                || (expectHumanoidReady && anim == null)
+                || (expectHumanoidReady
+                    && (!humanoidReady || anim == null || !animSetup.LocomotionControllerAssigned))
                 || locController == null
-                || profile == null;
+                || !cameraProfileValid;
 
-            sb.Append("  • Baseline ready: ");
-            sb.AppendLine(blocking ? "no — fix items above" : "yes (standard Humanoid + assets OK)");
+            string pathLine = anim == null
+                ? "(none)"
+                : string.IsNullOrEmpty(animSetup.AnimatorPathFromPlayer)
+                    ? anim.name
+                    : animSetup.AnimatorPathFromPlayer;
+
+            StringBuilder sb = new StringBuilder(512);
+            sb.AppendLine("[CCS] Phase 1 Report:");
+            sb.AppendLine("* Animator: " + animatorLine);
+            sb.AppendLine("* Animator Path (from player root): " + pathLine);
+            sb.AppendLine("* Avatar: " + avatarLine);
+            sb.AppendLine("* Camera Profile: " + cameraLine + (cameraProfileValid ? "" : " (" + defaultProfilePath + ")"));
+            sb.AppendLine("* Locomotion Controller: " + locoLine);
+            sb.AppendLine("* Ground Offset: " + groundLine
+                + (groundOutcome.OffsetApplied ? " (local Y " + groundOutcome.LocalYOffsetApplied.ToString("F3") + ")" : string.Empty));
+            sb.AppendLine("* Baseline Ready: " + (blocking ? "NO" : "YES"));
 
             Debug.Log(sb.ToString(), playerRoot);
 
@@ -841,166 +773,112 @@ namespace CCS.CharacterController.Editor
             return parts.Count == 0 ? leaf.name : string.Join("/", parts);
         }
 
-        private static void TryAssignHumanoidAvatarFromImportedSource(Animator animator, GameObject modelInstanceRoot)
-        {
-            if (animator == null || modelInstanceRoot == null)
-            {
-                return;
-            }
-
-            if (animator.avatar != null && animator.avatar.isValid && animator.avatar.isHuman)
-            {
-                return;
-            }
-
-            string path = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(modelInstanceRoot);
-            if (string.IsNullOrEmpty(path))
-            {
-                return;
-            }
-
-            UnityEngine.Object[] subAssets = AssetDatabase.LoadAllAssetsAtPath(path);
-            Avatar bestHuman = null;
-            bool sawNonHumanAvatar = false;
-            for (int i = 0; i < subAssets.Length; i++)
-            {
-                Avatar candidate = subAssets[i] as Avatar;
-                if (candidate == null || !candidate.isValid)
-                {
-                    continue;
-                }
-
-                if (candidate.isHuman)
-                {
-                    bestHuman = candidate;
-                    break;
-                }
-
-                sawNonHumanAvatar = true;
-            }
-
-            if (bestHuman == null)
-            {
-                if (sawNonHumanAvatar && (animator.avatar == null || !animator.avatar.isValid))
-                {
-                    Debug.LogWarning(
-                        "[CCS_CharacterSetupWizard] Import at '"
-                        + path
-                        + "' has only non-Humanoid Avatar(s). Phase-1 baseline does not auto-assign those; set Rig to Humanoid on the model.",
-                        modelInstanceRoot);
-                }
-
-                return;
-            }
-
-            Undo.RecordObject(animator, "Assign Humanoid Avatar from imported model");
-            animator.avatar = bestHuman;
-            EditorUtility.SetDirty(animator);
-            Debug.Log(
-                "[CCS_CharacterSetupWizard] Assigned Humanoid Avatar '"
-                + bestHuman.name
-                + "' from '"
-                + path
-                + "' to Animator on '"
-                + animator.name
-                + "'.",
-                animator);
-        }
-
-        private static Animator ResolveBestAnimatorOnModel(Transform modelRoot, bool verboseLogs, out bool reusedExistingAnimator)
+        /// <summary>
+        /// Picks the best <see cref="Animator"/> under <paramref name="searchRoot"/> using tiered rules
+        /// (Humanoid valid Avatar &gt; any valid Avatar &gt; fallback), then enabled preference, then hierarchy order.
+        /// If none exist, adds one on <paramref name="animatorHostIfCreate"/> (expected: ModelOffsetRoot).
+        /// </summary>
+        private static Animator PickBestLocomotionAnimator(
+            Transform searchRoot,
+            Transform animatorHostIfCreate,
+            GameObject playerRoot,
+            out bool reusedExistingAnimator)
         {
             reusedExistingAnimator = false;
-            Animator[] animators = modelRoot.GetComponentsInChildren<Animator>(true);
+            Animator[] animators = searchRoot.GetComponentsInChildren<Animator>(true);
             if (animators == null || animators.Length == 0)
             {
-                Animator added = Undo.AddComponent<Animator>(modelRoot.gameObject);
-                Debug.LogWarning(
-                    "[CCS_CharacterSetupWizard] No Animator in the model hierarchy; added one on '"
-                    + modelRoot.name
-                    + "'. For Humanoid characters, prefer an Animator already on the imported rig with a Humanoid Avatar.",
+                if (animatorHostIfCreate == null)
+                {
+                    return null;
+                }
+
+                Animator added = Undo.AddComponent<Animator>(animatorHostIfCreate.gameObject);
+                Debug.Log(
+                    "[CCS] No Animator found. Created new Animator on ModelOffsetRoot.",
                     added);
+                reusedExistingAnimator = false;
                 return added;
             }
 
             reusedExistingAnimator = true;
 
-            Animator best = animators[0];
-            int bestScore = ScoreAnimatorForLocomotion(best);
+            int bestIndex = 0;
             for (int i = 1; i < animators.Length; i++)
             {
-                int score = ScoreAnimatorForLocomotion(animators[i]);
-                if (score > bestScore)
+                if (CompareLocomotionAnimatorPreference(animators[i], i, animators[bestIndex], bestIndex) < 0)
                 {
-                    bestScore = score;
-                    best = animators[i];
+                    bestIndex = i;
                 }
             }
 
-            if (verboseLogs)
-            {
-                Debug.Log(
-                    "[CCS_CharacterSetupWizard] Chose Animator on '"
-                    + best.name
-                    + "' out of "
-                    + animators.Length
-                    + " candidate(s) (prefers valid Humanoid Avatar).",
-                    best);
-            }
-
+            Animator best = animators[bestIndex];
+            string path = BuildTransformPathRelativeTo(best.transform, playerRoot.transform);
+            Debug.Log(
+                "[CCS] Selected locomotion Animator at '"
+                + path
+                + "' ("
+                + animators.Length
+                + " candidate(s) evaluated: prefer Humanoid valid Avatar, then any Avatar, then first in hierarchy).",
+                best);
             return best;
         }
 
-        private static int ScoreAnimatorForLocomotion(Animator animator)
+        /// <summary>
+        /// Returns negative if <paramref name="a"/> should win over <paramref name="b"/>.
+        /// </summary>
+        private static int CompareLocomotionAnimatorPreference(Animator a, int indexA, Animator b, int indexB)
+        {
+            int tierA = GetAnimatorLocomotionTier(a);
+            int tierB = GetAnimatorLocomotionTier(b);
+            if (tierA != tierB)
+            {
+                return tierB.CompareTo(tierA);
+            }
+
+            if (a.enabled != b.enabled)
+            {
+                return b.enabled.CompareTo(a.enabled);
+            }
+
+            return indexA.CompareTo(indexB);
+        }
+
+        /// <summary>
+        /// 3 = valid Humanoid Avatar, 2 = valid non-human Avatar, 1 = no usable Avatar.
+        /// </summary>
+        private static int GetAnimatorLocomotionTier(Animator animator)
         {
             if (animator == null)
             {
-                return -1;
+                return 0;
             }
 
-            int score = 0;
-            if (animator.avatar != null)
+            if (animator.avatar != null && animator.avatar.isValid && animator.avatar.isHuman)
             {
-                if (animator.avatar.isValid && animator.avatar.isHuman)
-                {
-                    score += 100;
-                }
-                else if (animator.avatar.isValid)
-                {
-                    score += 50;
-                }
-                else
-                {
-                    score += 10;
-                }
+                return 3;
             }
 
-            if (animator.runtimeAnimatorController != null)
+            if (animator.avatar != null && animator.avatar.isValid)
             {
-                score += 5;
+                return 2;
             }
 
-            if (animator.isHuman)
-            {
-                score += 3;
-            }
-
-            return score;
+            return 1;
         }
 
-        private static GroundAlignOutcome AlignModelOffsetToCapsuleGround(
-            UnityEngine.CharacterController motor,
+        private static GroundAlignOutcome AlignModelOffsetForVisualGrounding(
             Transform modelOffsetRoot,
             Transform meshSearchRoot,
             GameObject playerRoot)
         {
             GroundAlignOutcome outcome = default;
-            if (motor == null || modelOffsetRoot == null || meshSearchRoot == null)
+            if (modelOffsetRoot == null || meshSearchRoot == null)
             {
                 return outcome;
             }
 
-            Renderer[] renderers = meshSearchRoot.GetComponentsInChildren<Renderer>(true);
-            if (renderers == null || renderers.Length == 0)
+            if (!TryGetLowestRendererPointLocalY(modelOffsetRoot, meshSearchRoot, out float lowestLocalY))
             {
                 Debug.LogWarning(
                     "[CCS_CharacterSetupWizard] No Renderer under imported model; skipped visual ground alignment.",
@@ -1010,34 +888,73 @@ namespace CCS.CharacterController.Editor
 
             outcome.HadRenderableBounds = true;
 
-            Bounds combined = renderers[0].bounds;
-            for (int i = 1; i < renderers.Length; i++)
+            if (Mathf.Abs(lowestLocalY) < 0.0005f)
             {
-                combined.Encapsulate(renderers[i].bounds);
-            }
-
-            float meshBottomY = combined.min.y;
-            float capsuleBottomY = motor.bounds.min.y;
-            float deltaY = capsuleBottomY - meshBottomY;
-            if (Mathf.Abs(deltaY) < 0.0005f)
-            {
-                outcome.SkippedAlreadyAligned = true;
+                outcome.SkippedNearZero = true;
                 Debug.Log(
-                    "[CCS_CharacterSetupWizard] Visual ground alignment: no offset needed (mesh bottom already matches capsule bottom).",
+                    "[CCS_CharacterSetupWizard] Visual ground alignment: mesh bottom already at ModelOffsetRoot origin (local).",
                     playerRoot);
                 return outcome;
             }
 
-            Undo.RecordObject(modelOffsetRoot, "Align character visual to capsule ground");
-            modelOffsetRoot.position += Vector3.up * deltaY;
+            Undo.RecordObject(modelOffsetRoot, "Align character visual to ground (ModelOffsetRoot local Y)");
+            Vector3 local = modelOffsetRoot.localPosition;
+            float newY = local.y - lowestLocalY;
+            modelOffsetRoot.localPosition = new Vector3(local.x, newY, local.z);
             outcome.OffsetApplied = true;
-            outcome.DeltaAppliedWorldUp = deltaY;
+            outcome.LocalYOffsetApplied = newY;
             Debug.Log(
-                "[CCS_CharacterSetupWizard] Visual ground alignment: moved ModelOffsetRoot by "
-                + deltaY.ToString("F3")
-                + " m (world up) so mesh bottom matches CharacterController bottom.",
+                "[CCS_CharacterSetupWizard] Visual ground alignment: ModelOffsetRoot.localPosition.y set to "
+                + newY.ToString("F3")
+                + " (mesh lowest local Y was "
+                + lowestLocalY.ToString("F3")
+                + ").",
                 modelOffsetRoot);
             return outcome;
+        }
+
+        private static bool TryGetLowestRendererPointLocalY(
+            Transform modelOffsetRoot,
+            Transform meshSearchRoot,
+            out float lowestLocalY)
+        {
+            lowestLocalY = 0f;
+            Renderer[] renderers = meshSearchRoot.GetComponentsInChildren<Renderer>(true);
+            if (renderers == null || renderers.Length == 0)
+            {
+                return false;
+            }
+
+            Matrix4x4 worldToLocal = modelOffsetRoot.worldToLocalMatrix;
+            float minY = float.MaxValue;
+            Vector3[] corners = new Vector3[8];
+
+            for (int r = 0; r < renderers.Length; r++)
+            {
+                Bounds bounds = renderers[r].bounds;
+                Vector3 min = bounds.min;
+                Vector3 max = bounds.max;
+                corners[0] = new Vector3(min.x, min.y, min.z);
+                corners[1] = new Vector3(min.x, min.y, max.z);
+                corners[2] = new Vector3(min.x, max.y, min.z);
+                corners[3] = new Vector3(min.x, max.y, max.z);
+                corners[4] = new Vector3(max.x, min.y, min.z);
+                corners[5] = new Vector3(max.x, min.y, max.z);
+                corners[6] = new Vector3(max.x, max.y, min.z);
+                corners[7] = new Vector3(max.x, max.y, max.z);
+
+                for (int c = 0; c < 8; c++)
+                {
+                    float y = worldToLocal.MultiplyPoint3x4(corners[c]).y;
+                    if (y < minY)
+                    {
+                        minY = y;
+                    }
+                }
+            }
+
+            lowestLocalY = minY;
+            return true;
         }
 
         // Adds CCS_AnimatorDriver on the player root and wires character + locomotion Animator references.
