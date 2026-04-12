@@ -22,7 +22,7 @@ namespace CCS.CharacterController.Editor
     {
         private static readonly string[] KnownCameraProfileAssetsRelativeToPackageRoot =
         {
-            "Scripts/Profiles/CCS_Default_TP_Follow_CameraProfile.asset",
+            "Scripts/Profiles/camera/CCS_Default_TP_Follow_CameraProfile.asset",
             "Scripts/Profiles/CameraProfiles/CCS_TP_Default_CameraProfile.asset",
             "Scripts/Profiles/camera/CCS_CameraProfile_DefaultThirdPerson.asset",
         };

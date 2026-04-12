@@ -21,7 +21,7 @@ namespace CCS.CharacterController
 
         /// <summary>Path under package root to default third-person camera profile.</summary>
         public const string RelativeDefaultThirdPersonFollowCameraProfile =
-            "Scripts/Profiles/CCS_Default_TP_Follow_CameraProfile.asset";
+            "Scripts/Profiles/camera/CCS_Default_TP_Follow_CameraProfile.asset";
 
         /// <summary>Path under package root to base locomotion Animator controller (BaseLocomotion baseline).</summary>
         public const string RelativeDefaultBaseLocomotionAnimatorController =

@@ -4,6 +4,13 @@ All notable changes to this package are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.6-preview.1] — 2026-04-12
+
+### Changed
+
+- **Default follow camera profile path:** `Scripts/Profiles/camera/CCS_Default_TP_Follow_CameraProfile.asset` (lives next to other `camera` profile assets). **`CCS_CharacterControllerPackagePaths`**, **`CCS_CameraProfileAssetUtility`** known-asset list, and comments updated.
+- **Repository layout:** `Animations`, `Art`, `Scenes`, `Scripts`, and `Settings` mirrored from the canonical Unity dev tree **`Assets/CCS/CharacterController`** (no repo changes outside the UPM package body + existing root metadata files).
+
 ## [0.1.5-preview.1] — 2026-04-10
 
 ### Fixed
@@ -41,6 +48,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Phase 1 Report**: clearer lines for chosen path, reuse vs create, locomotion controller target path.
 - **README**: shortened Hub-style; note that **TestLocomotion** material `.meta` errors are from the **Hub template**, not this package.
 
+[0.1.6-preview.1]: https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/compare/v0.1.5-preview.1...v0.1.6-preview.1
 [0.1.5-preview.1]: https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/compare/v0.1.4-preview.1...v0.1.5-preview.1
 [0.1.4-preview.1]: https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/compare/v0.1.3-preview.1...v0.1.4-preview.1
 [0.1.3-preview.1]: https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/compare/v0.1.2-preview.1...v0.1.3-preview.1

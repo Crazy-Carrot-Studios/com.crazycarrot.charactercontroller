@@ -5,7 +5,7 @@ using UnityEngine;
 // Name: CCS_CameraProfile
 // Purpose: Default Cinemachine third-person tuning (lens, orbit, damping, input) applied by CCS_CameraRig.
 // Required components: None (ScriptableObject asset).
-// Placement: Scripts/Runtime/Scriptable Objects (same assembly as CCS_CameraRig). Default asset: Scripts/Profiles/CCS_Default_TP_Follow_CameraProfile.asset.
+// Placement: Scripts/Runtime/Scriptable Objects (same assembly as CCS_CameraRig). Default asset: Scripts/Profiles/camera/CCS_Default_TP_Follow_CameraProfile.asset.
 // Author: James Schilz
 // Date: 2026-04-10
 //==============================================================================
@@ -73,10 +73,9 @@ namespace CCS.CharacterController
         public int priority = 20;
 
         /// <summary>
-        /// Creates a runtime instance with the same tuning as <c>CCS_Default_TP_Follow_CameraProfile</c> (for editor repair / factory / play-mode fallback).
+        /// Creates a runtime instance with the same tuning as <c>CCS_Default_TP_Follow_CameraProfile</c> (for editor repair / factory).
         /// </summary>
-        /// <param name="objectName">Optional <see cref="Object.name"/>; defaults to the standard default asset name.</param>
-        public static CCS_CameraProfile CreateBaselineDefaultsInstance(string objectName = null)
+        public static CCS_CameraProfile CreateBaselineDefaultsInstance()
         {
             CCS_CameraProfile profile = CreateInstance<CCS_CameraProfile>();
             profile.fieldOfView = 58f;
@@ -95,9 +94,7 @@ namespace CCS.CharacterController
             profile.composerTargetOffset = Vector3.zero;
             profile.mouseOrbitSpeed = 0.26f;
             profile.priority = 20;
-            profile.name = string.IsNullOrEmpty(objectName)
-                ? "CCS_Default_TP_Follow_CameraProfile"
-                : objectName;
+            profile.name = "CCS_Default_TP_Follow_CameraProfile";
             return profile;
         }
     }
