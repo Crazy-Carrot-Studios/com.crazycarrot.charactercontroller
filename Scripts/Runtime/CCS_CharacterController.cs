@@ -43,6 +43,10 @@ namespace CCS.CharacterController
         // Rotates toward move direction while moving; idle leaves facing unchanged.
         private Transform characterVisualRoot;
 
+        [Tooltip("Locomotion Animator the wizard binds (Humanoid rig). When set, overrides discovery under the visual root.")]
+        [SerializeField]
+        private Animator locomotionAnimator;
+
         [Header("Movement")]
         [Tooltip("Planar move speed in meters per second.")]
         [SerializeField]
@@ -359,11 +363,23 @@ namespace CCS.CharacterController
         /// <summary>Yaw smooth-damp angular velocity magnitude (degrees/sec) from facing updates.</summary>
         public float LocomotionYawVelocityDegreesPerSecond => rotationSmoothVelocity;
 
-        /// <summary>First Animator under the visual root (imported rigs usually host it on a child), if any.</summary>
-        public Animator LocomotionAnimator =>
-            characterVisualRoot != null
-                ? characterVisualRoot.GetComponentInChildren<Animator>(true)
-                : null;
+        /// <summary>
+        /// Locomotion Animator for <see cref="CCS_AnimatorDriver"/> — explicit reference when assigned, otherwise first Animator under the visual root.
+        /// </summary>
+        public Animator LocomotionAnimator
+        {
+            get
+            {
+                if (locomotionAnimator != null)
+                {
+                    return locomotionAnimator;
+                }
+
+                return characterVisualRoot != null
+                    ? characterVisualRoot.GetComponentInChildren<Animator>(true)
+                    : null;
+            }
+        }
 
         #endregion
     }

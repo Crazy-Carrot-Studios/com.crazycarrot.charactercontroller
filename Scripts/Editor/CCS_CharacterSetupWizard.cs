@@ -90,6 +90,7 @@ namespace CCS.CharacterController.Editor
             public bool ReusedExistingAnimator;
             public bool LocomotionControllerAssigned;
             public string AnimatorPathFromPlayer;
+            public string LocomotionControllerTargetPath;
         }
 
         private struct GroundAlignOutcome
@@ -556,6 +557,7 @@ namespace CCS.CharacterController.Editor
                 follow.transform,
                 look.transform,
                 characterVisualRootForFacing,
+                animSetup.Animator,
                 moveReference,
                 defaultMoveSpeed,
                 defaultRotationSmoothTime,
@@ -635,6 +637,9 @@ namespace CCS.CharacterController.Editor
             animator.applyRootMotion = false;
             EditorUtility.SetDirty(animator);
             result.LocomotionControllerAssigned = true;
+            result.LocomotionControllerTargetPath = result.AnimatorPathFromPlayer;
+
+            IsolateLocomotionAnimatorOnModelStack(modelOffsetRoot, animator, playerRoot.transform);
 
             if (enableWizardDebugLogs)
             {
@@ -728,13 +733,18 @@ namespace CCS.CharacterController.Editor
                     ? anim.name
                     : animSetup.AnimatorPathFromPlayer;
 
+            string locoTargetLine = animSetup.LocomotionControllerAssigned && !string.IsNullOrEmpty(animSetup.LocomotionControllerTargetPath)
+                ? animSetup.LocomotionControllerTargetPath
+                : "(n/a)";
+
             StringBuilder sb = new StringBuilder(512);
             sb.AppendLine("[CCS] Phase 1 Report:");
-            sb.AppendLine("* Animator: " + animatorLine);
-            sb.AppendLine("* Animator Path (from player root): " + pathLine);
+            sb.AppendLine("* Chosen Animator path (from player root): " + pathLine);
+            sb.AppendLine("* Animator: " + animatorLine + " (reused = existing in prefab, created = new on ModelOffsetRoot)");
             sb.AppendLine("* Avatar: " + avatarLine);
+            sb.AppendLine("* Locomotion controller assigned on Animator at: " + locoTargetLine);
             sb.AppendLine("* Camera Profile: " + cameraLine + (cameraProfileValid ? "" : " (" + defaultProfilePath + ")"));
-            sb.AppendLine("* Locomotion Controller: " + locoLine);
+            sb.AppendLine("* Locomotion Controller asset: " + locoLine);
             sb.AppendLine("* Ground Offset: " + groundLine
                 + (groundOutcome.OffsetApplied ? " (local Y " + groundOutcome.LocalYOffsetApplied.ToString("F3") + ")" : string.Empty));
             sb.AppendLine("* Baseline Ready: " + (blocking ? "NO" : "YES"));
@@ -778,6 +788,47 @@ namespace CCS.CharacterController.Editor
         /// (Humanoid valid Avatar &gt; any valid Avatar &gt; fallback), then enabled preference, then hierarchy order.
         /// If none exist, adds one on <paramref name="animatorHostIfCreate"/> (expected: ModelOffsetRoot).
         /// </summary>
+        private static void IsolateLocomotionAnimatorOnModelStack(
+            Transform modelOffsetRoot,
+            Animator chosen,
+            Transform playerRoot)
+        {
+            if (modelOffsetRoot == null || chosen == null)
+            {
+                return;
+            }
+
+            Animator[] all = modelOffsetRoot.GetComponentsInChildren<Animator>(true);
+            int disabled = 0;
+            for (int i = 0; i < all.Length; i++)
+            {
+                Animator other = all[i];
+                if (other == null || other == chosen)
+                {
+                    continue;
+                }
+
+                Undo.RecordObject(other, "CCS: disable duplicate Animator for locomotion");
+                other.enabled = false;
+                other.runtimeAnimatorController = null;
+                other.applyRootMotion = false;
+                EditorUtility.SetDirty(other);
+                disabled++;
+            }
+
+            if (disabled > 0)
+            {
+                string chosenPath = BuildTransformPathRelativeTo(chosen.transform, playerRoot);
+                Debug.Log(
+                    "[CCS] Disabled "
+                    + disabled
+                    + " other Animator(s) under ModelOffsetRoot so only '"
+                    + chosenPath
+                    + "' drives the Humanoid rig.",
+                    chosen);
+            }
+        }
+
         private static Animator PickBestLocomotionAnimator(
             Transform searchRoot,
             Transform animatorHostIfCreate,
@@ -1637,6 +1688,7 @@ namespace CCS.CharacterController.Editor
             Transform followTarget,
             Transform lookTarget,
             Transform visualRoot,
+            Animator locomotionAnimatorReference,
             InputActionReference moveReference,
             float moveSpeed,
             float rotationSmoothTime,
@@ -1648,6 +1700,7 @@ namespace CCS.CharacterController.Editor
             serializedObject.FindProperty("cameraFollowTarget").objectReferenceValue = followTarget;
             serializedObject.FindProperty("cameraLookTarget").objectReferenceValue = lookTarget;
             serializedObject.FindProperty("characterVisualRoot").objectReferenceValue = visualRoot;
+            serializedObject.FindProperty("locomotionAnimator").objectReferenceValue = locomotionAnimatorReference;
             serializedObject.FindProperty("moveAction").objectReferenceValue = moveReference;
             serializedObject.FindProperty("moveSpeed").floatValue = moveSpeed;
             serializedObject.FindProperty("rotationSmoothTime").floatValue = rotationSmoothTime;

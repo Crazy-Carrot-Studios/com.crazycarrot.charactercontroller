@@ -4,6 +4,24 @@ All notable changes to this package are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.3-preview.1] — 2026-04-11
+
+### Fixed
+
+- **`Scripts/Profiles/camera.meta`**: GUID was **33** characters (invalid YAML); corrected to **32** hex so Unity imports the `camera` profile folder (fixes object picker / ignored path when using Hub copy).
+
+### Added
+
+- **`CCS_CharacterController.locomotionAnimator`**: serialized reference set by the wizard so **`LocomotionAnimator`** is not resolved by “first child Animator” (which could mismatch **`CCS_AnimatorDriver`**).
+- **`IsolateLocomotionAnimatorOnModelStack`**: disables other **Animator** components under **ModelOffsetRoot** and clears their controllers so only the chosen Humanoid host runs (fixes curl / double-rig fights).
+
+### Changed
+
+- **Phase 1 Report**: clearer lines for chosen path, reuse vs create, locomotion controller target path.
+- **README**: shortened Hub-style; note that **TestLocomotion** material `.meta` errors are from the **Hub template**, not this package.
+
+[0.1.3-preview.1]: https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/compare/v0.1.2-preview.1...v0.1.3-preview.1
+
 ## [0.1.2-preview.1] — 2026-04-11
 
 **Preview** — Phase: **Basic Locomotion** (same baseline scope; setup hardening + docs).

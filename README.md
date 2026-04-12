@@ -1,28 +1,37 @@
 # CCS Character Controller
 
-**Version:** `0.1.2-preview.1` (authoritative: `package.json`)  
-**Phase:** **Basic Locomotion** — third-person move, Cinemachine camera, Humanoid-oriented wizard. Not combat-ready. Not feature-complete.
+**Package:** `com.crazycarrot.charactercontroller`  
+**Version:** `0.1.3-preview.1` (`package.json`)  
+**Phase:** **Base Controller** — baseline third-person controller, Humanoid basic locomotion only. Not feature-complete. Not combat-ready.
 
-Third-person **CharacterController** locomotion, **Cinemachine 3** rig, **Character Setup Wizard**, default camera profile and **CCS_Base_locomotion_controller** (root motion off).
+## Install (Unity Package Manager — Git URL)
 
-## Unity: install from Git
-
-Add to **`Packages/manifest.json`** inside `"dependencies"`:
+`Packages/manifest.json` → `dependencies`:
 
 ```json
 "com.crazycarrot.charactercontroller": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller.git",
 "com.crazycarrot.branding": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.branding.git"
 ```
 
-Optional — pin this preview build:
+Optional pin:
 
 ```json
-"com.crazycarrot.charactercontroller": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller.git#v0.1.2-preview.1"
+"com.crazycarrot.charactercontroller": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller.git#v0.1.3-preview.1"
 ```
 
-- **Unity:** 6 (`6000.0+`). **Input System** + **Cinemachine 3** versions are listed in `package.json`.
-- **Wizard:** **CCS → Character Controller → Create Character**
-- **Repo:** [github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller](https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller)
-- **Changelog:** [CHANGELOG.md](CHANGELOG.md)
+## Dependencies
 
-If you copy the package into **`Assets/`** (e.g. Hub), keep every **`.meta`** file so camera profile assets keep the correct script GUIDs.
+- **com.crazycarrot.branding** (Git, see above)
+- **Input System** & **Cinemachine 3** — versions in `package.json`
+
+## Wizard
+
+**CCS → Character Controller → Create Character**
+
+## Repository
+
+https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller
+
+---
+
+**Hub / other templates:** Errors for `Assets/CCS/Materials/TestLocomotion*.meta` come from **materials shipped with the Hub template**, not from this package. Fix those `.meta` files in the template (each `guid:` must be **32 hex characters**). This repo’s `Scripts/Profiles/camera.meta` must also stay valid for the `camera` profile folder to import.
