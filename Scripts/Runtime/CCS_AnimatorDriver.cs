@@ -16,6 +16,8 @@ namespace CCS.CharacterController
     /// <summary>
     /// Single owner for writing gameplay-driven values into the locomotion Animator.
     /// Expects parameter names to match <c>CCS_Base_locomotion_controller</c> (InputMagnitude, etc.).
+    /// Runs after <see cref="CCS_CharacterController"/> (order 100). Also pushes once from <c>Start</c> so parameters
+    /// match the motor before the first Animator update (Animator runs after <c>Update</c>, before <c>LateUpdate</c>).
     /// </summary>
     [DefaultExecutionOrder(200)]
     public sealed class CCS_AnimatorDriver : MonoBehaviour
@@ -57,6 +59,12 @@ namespace CCS.CharacterController
             EnsureRootMotionOff();
         }
 
+        private void Start()
+        {
+            EnsureRootMotionOff();
+            PushLocomotionParametersToAnimator();
+        }
+
         /// <summary>
         /// LateUpdate runs after <see cref="CCS_CharacterController"/> (order 100) so motor and input match this frame.
         /// </summary>
@@ -68,6 +76,18 @@ namespace CCS.CharacterController
             }
 
             EnsureRootMotionOff();
+            PushLocomotionParametersToAnimator();
+        }
+
+        /// <summary>
+        /// Writes CCS locomotion parameters from <see cref="CCS_CharacterController"/> into the Animator.
+        /// </summary>
+        private void PushLocomotionParametersToAnimator()
+        {
+            if (characterController == null || locomotionAnimator == null)
+            {
+                return;
+            }
 
             // Match CCS_CharacterController dead zone so idle/locomotion aligns with movement authority.
             Vector2 input = characterController.IsMoving ? characterController.LocomotionMoveInput : Vector2.zero;

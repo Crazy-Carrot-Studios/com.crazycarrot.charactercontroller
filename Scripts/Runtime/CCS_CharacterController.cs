@@ -104,6 +104,12 @@ namespace CCS.CharacterController
             ValidateReferences();
         }
 
+        // Runs before the first Animator evaluation so the motor has reported grounded at least once.
+        private void Start()
+        {
+            WarmUpMotorGrounding();
+        }
+
         // Enables the Move input action for gameplay.
         private void OnEnable()
         {
@@ -317,6 +323,35 @@ namespace CCS.CharacterController
             else
             {
                 verticalVelocity += Physics.gravity.y * Time.deltaTime;
+            }
+        }
+
+        /// <summary>
+        /// <see cref="UnityEngine.CharacterController"/> often returns <c>isGrounded == false</c> until at least one
+        /// <see cref="UnityEngine.CharacterController.Move"/> resolves collision. On the first frames, gravity still
+        /// accumulates negative vertical velocity while the locomotion Animator (evaluated before <c>LateUpdate</c>)
+        /// can see <c>!IsGrounded</c> and <c>VerticalVelocity &lt; fall threshold</c> and jump to the Fall state—
+        /// which looks like the avatar curls or collapses in new scenes. A small downward probe snaps grounding first.
+        /// </summary>
+        private void WarmUpMotorGrounding()
+        {
+            if (characterMotor == null)
+            {
+                return;
+            }
+
+            float probe = Mathf.Max(0.1f, characterMotor.skinWidth * 2.5f);
+            characterMotor.Move(new Vector3(0f, -probe, 0f));
+            if (characterMotor.isGrounded)
+            {
+                verticalVelocity = -2f;
+                return;
+            }
+
+            characterMotor.Move(new Vector3(0f, -probe, 0f));
+            if (characterMotor.isGrounded)
+            {
+                verticalVelocity = -2f;
             }
         }
 

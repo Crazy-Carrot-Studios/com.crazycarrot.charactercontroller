@@ -4,6 +4,12 @@ All notable changes to this package are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.10-preview.1] — 2026-04-12
+
+### Fixed
+
+- **Spawn / new-project locomotion pose:** **`UnityEngine.CharacterController`** often reports **`isGrounded == false`** until at least one **`Move`**. Gravity was still applied in the first **`LateUpdate`** while the **Animator** evaluates **before** **`LateUpdate`**, so **`CCS_Base_locomotion_controller`** could enter **Fall** (`!IsGrounded` + **`VerticalVelocity` &lt; threshold**) and the Humanoid looked **curled or sunk**. **`CCS_CharacterController.Start`** now runs a small **downward ground probe**; **`CCS_AnimatorDriver.Start`** pushes parameters once after that (execution order after the character).
+
 ## [0.1.9-preview.1] — 2026-04-12
 
 ### Fixed
@@ -68,6 +74,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Phase 1 Report**: clearer lines for chosen path, reuse vs create, locomotion controller target path.
 - **README**: shortened Hub-style; note that **TestLocomotion** material `.meta` errors are from the **Hub template**, not this package.
 
+[0.1.10-preview.1]: https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/compare/v0.1.9-preview.1...v0.1.10-preview.1
 [0.1.9-preview.1]: https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/compare/v0.1.8-preview.1...v0.1.9-preview.1
 [0.1.8-preview.1]: https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/compare/v0.1.7-preview.1...v0.1.8-preview.1
 [0.1.7-preview.1]: https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/compare/v0.1.6-preview.1...v0.1.7-preview.1
