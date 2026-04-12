@@ -13,10 +13,11 @@ using CCS.CharacterController;
 // CCS Script Summary
 // Name: CCS_CharacterSetupWizard
 // Purpose: Model-agnostic third-person setup (humanoid baseline): build CCSPlayer + optional CCSCameraRig,
-//          reuse imported Animator/Avatar when present, align visuals to the capsule, wire Cinemachine 3 + defaults.
-//          Target: drop into any project, assign a standard Humanoid prefab, Create Character — same idea as reusable
-//          third-person controller packages (e.g. Invector-style workflow). Before creating, removes prior CCS players,
-//          rigs, and MainCamera-tagged cameras in loaded scenes.
+//          align visuals to the capsule, wire Cinemachine 3 + defaults. Phase 1 blocks non-Humanoid models before setup.
+//          Humanoid path: Avatar handoff to a single locomotion Animator on ModelOffsetRoot (Invector-style), then
+//          CCS_Base_locomotion_controller + Rebind; competing Animators on the model stack are disabled.
+//          Target: drop into any project, assign a standard Humanoid prefab, Create Character.
+//          Before creating, removes prior CCS players, rigs, and MainCamera-tagged cameras in loaded scenes.
 // Placement: Editor / menu CCS/Character Controller/Create Character.
 // Author: James Schilz
 // Date: 2026-04-10
@@ -89,6 +90,7 @@ namespace CCS.CharacterController.Editor
             public Animator Animator;
             public bool ReusedExistingAnimator;
             public bool LocomotionControllerAssigned;
+            public bool AvatarHandoffApplied;
             public string AnimatorPathFromPlayer;
             public string LocomotionControllerTargetPath;
         }
@@ -144,7 +146,7 @@ namespace CCS.CharacterController.Editor
             sourceModelPrefab = (GameObject)EditorGUILayout.ObjectField(
                 new GUIContent(
                     "Model or prefab",
-                    "Humanoid baseline: assign any standard Humanoid character prefab/FBX. Instantiated under CharacterVisuals/ModelOffsetRoot. Leave empty for hierarchy-only."),
+                    "Phase 1: Humanoid only — prefab must contain an Animator with a valid Humanoid Avatar. Instantiated under CharacterVisuals/ModelOffsetRoot. Leave empty for hierarchy-only (no locomotion Animator)."),
                 sourceModelPrefab,
                 typeof(GameObject),
                 false);
@@ -226,6 +228,18 @@ namespace CCS.CharacterController.Editor
                     Debug.LogError(
                         "[CCS_CharacterSetupWizard] Could not resolve Move and/or Look from the input asset. Check Gameplay map actions.",
                         this);
+                    LogCharacterSetupFailed();
+                    return;
+                }
+
+                if (!TryValidateSourceModelHumanoidForPhase1(out string humanoidValidationFailure))
+                {
+                    EditorUtility.DisplayDialog(
+                        "CCS — Humanoid required",
+                        humanoidValidationFailure
+                        + "\n\nSet Rig to Humanoid and Apply in the FBX importer (or assign a valid Humanoid Avatar), then try again.",
+                        "OK");
+                    Debug.LogError("[CCS_CharacterSetupWizard] " + humanoidValidationFailure, sourceModelPrefab);
                     LogCharacterSetupFailed();
                     return;
                 }
@@ -551,6 +565,23 @@ namespace CCS.CharacterController.Editor
                     expectHumanoidBaseline: false);
             }
 
+            if (sourceModelPrefab != null && modelInstanceCreated)
+            {
+                RuntimeAnimatorController effectiveLoco = ResolveEffectiveLocomotionController();
+                if (animSetup.Animator == null
+                    || !animSetup.LocomotionControllerAssigned
+                    || effectiveLoco == null
+                    || !IsAnimatorHumanoidReady(animSetup.Animator))
+                {
+                    Undo.DestroyObjectImmediate(playerRoot);
+                    Debug.LogError(
+                        "[CCS_CharacterSetupWizard] Character setup rolled back: Humanoid locomotion Animator could not be configured "
+                        + "(Avatar handoff or locomotion controller missing). Check the Console and Default Assets.",
+                        this);
+                    return null;
+                }
+            }
+
             ApplyCharacterBindings(
                 character,
                 motor,
@@ -583,87 +614,243 @@ namespace CCS.CharacterController.Editor
             GameObject playerRoot,
             bool expectHumanoidBaseline)
         {
-            LocomotionAnimatorSetupResult result = default;
             if (modelOffsetRoot == null || modelHierarchySearchRoot == null || playerRoot == null)
             {
+                return default;
+            }
+
+            if (expectHumanoidBaseline)
+            {
+                return SetupHumanoidLocomotionWithAvatarHandoff(
+                    modelOffsetRoot,
+                    modelHierarchySearchRoot,
+                    playerRoot);
+            }
+
+            return SetupHierarchyOnlyLocomotionAnimator();
+        }
+
+        /// <summary>
+        /// Single locomotion Animator on <see cref="ModelOffsetRoot"/>: copies Humanoid Avatar from the best source
+        /// under the imported model, assigns CCS locomotion controller, Rebind, then disables competing Animators.
+        /// </summary>
+        private LocomotionAnimatorSetupResult SetupHumanoidLocomotionWithAvatarHandoff(
+            Transform modelOffsetRoot,
+            Transform modelHierarchySearchRoot,
+            GameObject playerRoot)
+        {
+            LocomotionAnimatorSetupResult result = default;
+            if (!TryFindBestHumanoidAvatarSourceAnimator(modelHierarchySearchRoot, out Animator sourceAnimator))
+            {
+                Debug.LogError(
+                    "[CCS_CharacterSetupWizard] No Animator with a valid Humanoid Avatar was found under the model instance. "
+                    + "This should not happen after pre-validation; check the prefab hierarchy.",
+                    modelHierarchySearchRoot);
                 return result;
-            }
-
-            Animator animator = PickBestLocomotionAnimator(
-                modelHierarchySearchRoot,
-                modelOffsetRoot,
-                playerRoot,
-                out bool reusedExistingAnimator);
-            if (animator == null)
-            {
-                return result;
-            }
-
-            result.Animator = animator;
-            result.ReusedExistingAnimator = reusedExistingAnimator;
-            result.AnimatorPathFromPlayer = BuildTransformPathRelativeTo(animator.transform, playerRoot.transform);
-
-            if (animator.avatar == null || !animator.avatar.isValid)
-            {
-                Debug.LogWarning("[CCS] Animator has no Avatar assigned.", animator);
-            }
-            else if (!animator.avatar.isHuman)
-            {
-                Debug.LogWarning(
-                    "[CCS] Avatar is not Humanoid. Base locomotion requires Humanoid.",
-                    animator);
-            }
-            else if (enableWizardDebugLogs)
-            {
-                Debug.Log(
-                    "[CCS_CharacterSetupWizard] Locomotion Animator Avatar: valid Humanoid on '"
-                    + animator.name
-                    + "'.",
-                    animator);
             }
 
             RuntimeAnimatorController controller = ResolveEffectiveLocomotionController();
             if (controller == null)
             {
-                Debug.LogWarning(
+                Debug.LogError(
                     "[CCS_CharacterSetupWizard] No locomotion animator controller resolved; assign one in the wizard or restore "
                     + CCS_CharacterControllerPackagePaths.ResolvedDefaultBaseLocomotionAnimatorControllerPath,
                     playerRoot);
                 return result;
             }
 
-            Undo.RecordObject(animator, "Assign CCS locomotion animator");
-            animator.runtimeAnimatorController = controller;
-            animator.applyRootMotion = false;
-            EditorUtility.SetDirty(animator);
+            bool hostAlreadyOnOffset = modelOffsetRoot.GetComponent<Animator>() != null;
+            Animator host = modelOffsetRoot.GetComponent<Animator>();
+            if (host == null)
+            {
+                host = Undo.AddComponent<Animator>(modelOffsetRoot.gameObject);
+            }
+
+            Undo.RecordObject(host, "CCS: Avatar handoff + locomotion controller on ModelOffsetRoot");
+            host.avatar = sourceAnimator.avatar;
+            host.runtimeAnimatorController = controller;
+            host.applyRootMotion = false;
+            host.enabled = true;
+            host.Rebind();
+            EditorUtility.SetDirty(host);
+
+            result.Animator = host;
+            result.ReusedExistingAnimator = hostAlreadyOnOffset;
+            result.AvatarHandoffApplied = true;
+            result.AnimatorPathFromPlayer = BuildTransformPathRelativeTo(host.transform, playerRoot.transform);
             result.LocomotionControllerAssigned = true;
             result.LocomotionControllerTargetPath = result.AnimatorPathFromPlayer;
 
-            IsolateLocomotionAnimatorOnModelStack(modelOffsetRoot, animator, playerRoot.transform);
+            IsolateLocomotionAnimatorOnModelStack(modelOffsetRoot, host, playerRoot.transform);
 
             if (enableWizardDebugLogs)
             {
+                string sourcePath = BuildTransformPathRelativeTo(sourceAnimator.transform, playerRoot.transform);
                 Debug.Log(
-                    "[CCS_CharacterSetupWizard] Assigned locomotion controller '"
+                    "[CCS_CharacterSetupWizard] Avatar handoff: copied Humanoid Avatar from '"
+                    + sourcePath
+                    + "' to locomotion Animator on ModelOffsetRoot; assigned '"
                     + controller.name
-                    + "' on Animator '"
-                    + animator.name
-                    + "' (reusedExistingAnimator="
-                    + reusedExistingAnimator
-                    + ").",
-                    animator);
-            }
-
-            if (expectHumanoidBaseline && !IsAnimatorHumanoidReady(animator))
-            {
-                Debug.LogError(
-                    "[CCS_CharacterSetupWizard] Compatibility: Phase-1 baseline requires a valid Humanoid Avatar on the assigned model. "
-                    + "The character was created but locomotion will not behave correctly until you set Rig = Humanoid (and Apply) on the source FBX "
-                    + "or assign a Humanoid Avatar on this Animator.",
-                    animator);
+                    + "'; Rebind complete.",
+                    host);
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Hierarchy-only setup: no model, no locomotion Animator (avoids an Animator without Avatar on ModelOffsetRoot).
+        /// </summary>
+        private static LocomotionAnimatorSetupResult SetupHierarchyOnlyLocomotionAnimator()
+        {
+            return default;
+        }
+
+        /// <summary>
+        /// Phase A: when a model is assigned, require at least one Animator with valid Humanoid Avatar on that hierarchy.
+        /// </summary>
+        private bool TryValidateSourceModelHumanoidForPhase1(out string failureMessage)
+        {
+            failureMessage = null;
+            if (sourceModelPrefab == null)
+            {
+                return true;
+            }
+
+            GameObject probe = null;
+            bool unloadPrefabContents = false;
+            bool destroyTemporaryInstance = false;
+
+            try
+            {
+                if (PrefabUtility.IsPartOfPrefabAsset(sourceModelPrefab))
+                {
+                    string assetPath = AssetDatabase.GetAssetPath(sourceModelPrefab);
+                    if (string.IsNullOrEmpty(assetPath))
+                    {
+                        failureMessage = "Could not resolve an asset path for the assigned model.";
+                        return false;
+                    }
+
+                    probe = PrefabUtility.LoadPrefabContents(assetPath);
+                    unloadPrefabContents = true;
+                }
+                else if (sourceModelPrefab.scene.IsValid())
+                {
+                    probe = sourceModelPrefab;
+                }
+                else
+                {
+                    probe = (GameObject)PrefabUtility.InstantiatePrefab(sourceModelPrefab);
+                    if (probe == null)
+                    {
+                        probe = UnityEngine.Object.Instantiate(sourceModelPrefab);
+                    }
+
+                    if (probe != null)
+                    {
+                        destroyTemporaryInstance = true;
+                    }
+                }
+
+                if (probe == null)
+                {
+                    failureMessage = "Could not load the assigned model for Humanoid validation.";
+                    return false;
+                }
+
+                if (TryFindBestHumanoidAvatarSourceAnimator(probe.transform, out _))
+                {
+                    return true;
+                }
+
+                failureMessage = BuildHumanoidValidationFailureMessage(probe);
+                return false;
+            }
+            finally
+            {
+                if (unloadPrefabContents && probe != null)
+                {
+                    PrefabUtility.UnloadPrefabContents(probe);
+                }
+                else if (destroyTemporaryInstance && probe != null)
+                {
+                    DestroyImmediate(probe);
+                }
+            }
+        }
+
+        private static string BuildHumanoidValidationFailureMessage(GameObject probe)
+        {
+            Animator[] animators = probe.GetComponentsInChildren<Animator>(true);
+            if (animators == null || animators.Length == 0)
+            {
+                return "The model has no Animator in its hierarchy. Add an Animator, or import the FBX with Rig Type Humanoid (Apply) so Unity can drive the rig.";
+            }
+
+            for (int i = 0; i < animators.Length; i++)
+            {
+                Animator a = animators[i];
+                if (a == null)
+                {
+                    continue;
+                }
+
+                if (a.avatar == null)
+                {
+                    return "An Animator on '" + a.gameObject.name + "' has no Avatar assigned. Use a Humanoid rig on the FBX and Apply, or assign a Humanoid Avatar.";
+                }
+
+                if (!a.avatar.isValid)
+                {
+                    return "An Animator on '" + a.gameObject.name + "' has an invalid Avatar. Fix bone mapping / Humanoid configuration in the FBX importer.";
+                }
+
+                if (!a.avatar.isHuman)
+                {
+                    return "An Animator on '" + a.gameObject.name + "' uses a non-Humanoid Avatar. Phase 1 requires Rig Type Humanoid (with Apply) for this model.";
+                }
+            }
+
+            return "No Animator on this model has a valid Humanoid Avatar. Set Rig Type to Humanoid in the FBX importer and click Apply.";
+        }
+
+        private static bool TryFindBestHumanoidAvatarSourceAnimator(Transform searchRoot, out Animator best)
+        {
+            best = null;
+            if (searchRoot == null)
+            {
+                return false;
+            }
+
+            Animator[] animators = searchRoot.GetComponentsInChildren<Animator>(true);
+            if (animators == null || animators.Length == 0)
+            {
+                return false;
+            }
+
+            int bestIndex = -1;
+            for (int i = 0; i < animators.Length; i++)
+            {
+                if (GetAnimatorLocomotionTier(animators[i]) != 3)
+                {
+                    continue;
+                }
+
+                if (bestIndex < 0
+                    || CompareLocomotionAnimatorPreference(animators[i], i, animators[bestIndex], bestIndex) < 0)
+                {
+                    bestIndex = i;
+                }
+            }
+
+            if (bestIndex < 0)
+            {
+                return false;
+            }
+
+            best = animators[bestIndex];
+            return true;
         }
 
         private static bool IsAnimatorHumanoidReady(Animator animator)
@@ -699,9 +886,11 @@ namespace CCS.CharacterController.Editor
 
             string animatorLine = anim == null
                 ? "missing"
-                : animSetup.ReusedExistingAnimator
-                    ? "reused"
-                    : "created";
+                : animSetup.AvatarHandoffApplied
+                    ? "handoff (ModelOffsetRoot)"
+                    : animSetup.ReusedExistingAnimator
+                        ? "reused"
+                        : "created";
 
             string avatarLine = humanoidReady ? "valid humanoid" : "invalid";
 
@@ -740,7 +929,7 @@ namespace CCS.CharacterController.Editor
             StringBuilder sb = new StringBuilder(512);
             sb.AppendLine("[CCS] Phase 1 Report:");
             sb.AppendLine("* Chosen Animator path (from player root): " + pathLine);
-            sb.AppendLine("* Animator: " + animatorLine + " (reused = existing in prefab, created = new on ModelOffsetRoot)");
+            sb.AppendLine("* Animator: " + animatorLine + " (handoff = Avatar copied to ModelOffsetRoot; reused/created = legacy)");
             sb.AppendLine("* Avatar: " + avatarLine);
             sb.AppendLine("* Locomotion controller assigned on Animator at: " + locoTargetLine);
             sb.AppendLine("* Camera Profile: " + cameraLine + (cameraProfileValid ? "" : " (" + defaultProfilePath + ")"));
@@ -784,9 +973,8 @@ namespace CCS.CharacterController.Editor
         }
 
         /// <summary>
-        /// Picks the best <see cref="Animator"/> under <paramref name="searchRoot"/> using tiered rules
-        /// (Humanoid valid Avatar &gt; any valid Avatar &gt; fallback), then enabled preference, then hierarchy order.
-        /// If none exist, adds one on <paramref name="animatorHostIfCreate"/> (expected: ModelOffsetRoot).
+        /// Disables every other <see cref="Animator"/> under <paramref name="modelOffsetRoot"/> so only
+        /// <paramref name="chosen"/> drives the Humanoid hierarchy.
         /// </summary>
         private static void IsolateLocomotionAnimatorOnModelStack(
             Transform modelOffsetRoot,
@@ -827,52 +1015,6 @@ namespace CCS.CharacterController.Editor
                     + "' drives the Humanoid rig.",
                     chosen);
             }
-        }
-
-        private static Animator PickBestLocomotionAnimator(
-            Transform searchRoot,
-            Transform animatorHostIfCreate,
-            GameObject playerRoot,
-            out bool reusedExistingAnimator)
-        {
-            reusedExistingAnimator = false;
-            Animator[] animators = searchRoot.GetComponentsInChildren<Animator>(true);
-            if (animators == null || animators.Length == 0)
-            {
-                if (animatorHostIfCreate == null)
-                {
-                    return null;
-                }
-
-                Animator added = Undo.AddComponent<Animator>(animatorHostIfCreate.gameObject);
-                Debug.Log(
-                    "[CCS] No Animator found. Created new Animator on ModelOffsetRoot.",
-                    added);
-                reusedExistingAnimator = false;
-                return added;
-            }
-
-            reusedExistingAnimator = true;
-
-            int bestIndex = 0;
-            for (int i = 1; i < animators.Length; i++)
-            {
-                if (CompareLocomotionAnimatorPreference(animators[i], i, animators[bestIndex], bestIndex) < 0)
-                {
-                    bestIndex = i;
-                }
-            }
-
-            Animator best = animators[bestIndex];
-            string path = BuildTransformPathRelativeTo(best.transform, playerRoot.transform);
-            Debug.Log(
-                "[CCS] Selected locomotion Animator at '"
-                + path
-                + "' ("
-                + animators.Length
-                + " candidate(s) evaluated: prefer Humanoid valid Avatar, then any Avatar, then first in hierarchy).",
-                best);
-            return best;
         }
 
         /// <summary>

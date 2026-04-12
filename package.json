@@ -1,8 +1,8 @@
 {
   "name": "com.crazycarrot.charactercontroller",
-  "version": "0.1.3-preview.1",
+  "version": "0.1.4-preview.1",
   "displayName": "CCS Character Controller (BaseLocomotion)",
-  "description": "0.1.3-preview.1 — Phase: Base Controller. Humanoid basic locomotion + wizard. Valid profile folder .meta, explicit locomotion Animator + duplicate Animator isolation. Not feature-complete.",
+  "description": "0.1.4-preview.1 — Phase: Base Controller. Wizard Humanoid pre-validation; Avatar handoff to ModelOffsetRoot locomotion Animator + Rebind; duplicate Animator isolation. Not feature-complete.",
   "unity": "6000.0",
   "documentationUrl": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller",
   "changelogUrl": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/blob/main/CHANGELOG.md",

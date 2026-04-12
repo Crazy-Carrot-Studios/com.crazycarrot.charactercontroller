@@ -1,8 +1,8 @@
 # CCS Character Controller
 
 **Package:** `com.crazycarrot.charactercontroller`  
-**Version:** `0.1.3-preview.1` (`package.json`)  
-**Phase:** **Base Controller** — baseline third-person controller, Humanoid basic locomotion only. Not feature-complete. Not combat-ready.
+**Version:** `0.1.4-preview.1` (`package.json`)  
+**Phase:** **Base Controller** — Humanoid-only Phase 1: wizard validates Humanoid before create, single locomotion `Animator` on `ModelOffsetRoot` with Avatar handoff + `Rebind`. Basic locomotion only. Not feature-complete. Not combat-ready.
 
 ## Install (Unity Package Manager — Git URL)
 
@@ -16,7 +16,7 @@
 Optional pin:
 
 ```json
-"com.crazycarrot.charactercontroller": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller.git#v0.1.3-preview.1"
+"com.crazycarrot.charactercontroller": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller.git#v0.1.4-preview.1"
 ```
 
 ## Dependencies
@@ -26,7 +26,7 @@ Optional pin:
 
 ## Wizard
 
-**CCS → Character Controller → Create Character**
+**CCS → Character Controller → Create Character** — assigns a model with a valid **Humanoid** Avatar (Generic rigs are blocked). See `Documentation/Invector_vs_CCS_ThirdPerson_Portability.md` for architecture notes.
 
 ## Repository
 

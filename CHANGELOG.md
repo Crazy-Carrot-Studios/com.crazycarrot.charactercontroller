@@ -4,6 +4,21 @@ All notable changes to this package are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.4-preview.1] — 2026-04-10
+
+### Added
+
+- **Phase A (wizard)**: **`TryValidateSourceModelHumanoidForPhase1`** — if a model is assigned, **Create Character** requires at least one **Animator** with **`avatar.isValid`** and **`avatar.isHuman`** before any scene teardown; otherwise a blocking dialog and abort.
+- **Phase B (wizard)**: **`SetupHumanoidLocomotionWithAvatarHandoff`** — locomotion **Animator** lives on **`ModelOffsetRoot`** with **Avatar copied** from the best Humanoid source on the model, **`CCS_Base_locomotion_controller`** assigned, **`Rebind()`**, then **`IsolateLocomotionAnimatorOnModelStack`** (no Animator-without-Avatar path on **ModelOffsetRoot**).
+- **`Documentation/Invector_vs_CCS_ThirdPerson_Portability.md`**: architecture reference; §4 / §5 / §8 updated for Phase A+B.
+- **Phase 1 Report**: **`AvatarHandoffApplied`** / **`handoff (ModelOffsetRoot)`** in the compatibility log when locomotion uses the handoff path.
+
+### Changed
+
+- **Hierarchy-only** create (no model): wizard **no longer** adds an empty **Animator** on **ModelOffsetRoot**.
+- Failed Humanoid locomotion setup after model instantiate **rolls back** the new **CCSPlayer** (destroy + error) when controller/Avatar cannot be applied.
+- **README**: version **0.1.4-preview.1**, Git pin, short Phase 1 Humanoid / documentation pointer.
+
 ## [0.1.3-preview.1] — 2026-04-11
 
 ### Fixed
@@ -20,6 +35,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Phase 1 Report**: clearer lines for chosen path, reuse vs create, locomotion controller target path.
 - **README**: shortened Hub-style; note that **TestLocomotion** material `.meta` errors are from the **Hub template**, not this package.
 
+[0.1.4-preview.1]: https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/compare/v0.1.3-preview.1...v0.1.4-preview.1
 [0.1.3-preview.1]: https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/compare/v0.1.2-preview.1...v0.1.3-preview.1
 
 ## [0.1.2-preview.1] — 2026-04-11
