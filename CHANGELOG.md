@@ -4,6 +4,30 @@ All notable changes to this package are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.1-preview.1] — 2026-04-10
+
+**Preview / test build** — same baseline scope as 0.1.0 (basic locomotion only). Improves Humanoid-friendly setup when importing into **fresh projects** (e.g. via Hub).
+
+### Added
+
+- **Phase 1 compatibility report** after **Create Character** (Console): model instance, Animator reuse vs created, Avatar validity / Humanoid, mesh bounds & visual ground alignment, locomotion controller & camera profile resolution, baseline-ready summary.
+- **CCS_CameraProfileAssetUtility**: detects default camera profile assets that fail to load as `CCS_CameraProfile` (broken YAML / assembly binding); menu **CCS → Character Controller → Profiles → Recreate Default Follow Camera Profile**.
+- **`CCS_CameraProfile.CreateBaselineDefaultsInstance()`** for editor recreation of default profile tuning.
+
+### Changed
+
+- **Character Setup Wizard**: hierarchy **CharacterVisuals / ModelOffsetRoot / model**; **reuses existing `Animator`** in the imported hierarchy when present; adds `Animator` only if none; assigns locomotion controller with **`applyRootMotion = false`**; **Humanoid-only** automatic Avatar assignment from the source import (no generic Avatar fallback).
+- **Visual ground alignment**: offsets **ModelOffsetRoot** using renderer bounds vs `CharacterController` bottom (pivot-agnostic).
+- **`CCS_CharacterController.LocomotionAnimator`**: resolves **`GetComponentInChildren<Animator>(true)`** under the visual root so child rigs are found.
+- **Camera profile `.asset` files**: `m_EditorClassIdentifier` set to **`CCS.CharacterController.Runtime::CCS.CharacterController.CCS_CameraProfile`** so profiles pick correctly after UPM / Hub copy (fixes missing object-picker binding when scripts live in the Runtime asmdef).
+
+### Notes
+
+- **Phase 1 target**: standard **Humanoid** character prefabs. Non-Humanoid or invalid Avatar setups log **warnings/errors**; character may still be created for manual fix-up.
+- **Not** combat-ready, **not** a full animation product — baseline locomotion + camera setup only.
+
+[0.1.1-preview.1]: https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/compare/v0.1.0-base-locomotion...v0.1.1-preview.1
+
 ## [0.1.0] — 2026-04-10
 
 ### Baseline: Base Controller / BaseLocomotion

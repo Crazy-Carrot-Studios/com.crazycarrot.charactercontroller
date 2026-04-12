@@ -359,9 +359,11 @@ namespace CCS.CharacterController
         /// <summary>Yaw smooth-damp angular velocity magnitude (degrees/sec) from facing updates.</summary>
         public float LocomotionYawVelocityDegreesPerSecond => rotationSmoothVelocity;
 
-        /// <summary>Animator on the assigned visual root, if any.</summary>
+        /// <summary>First Animator under the visual root (imported rigs usually host it on a child), if any.</summary>
         public Animator LocomotionAnimator =>
-            characterVisualRoot != null ? characterVisualRoot.GetComponent<Animator>() : null;
+            characterVisualRoot != null
+                ? characterVisualRoot.GetComponentInChildren<Animator>(true)
+                : null;
 
         #endregion
     }

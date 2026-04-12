@@ -1,16 +1,17 @@
 # com.crazycarrot.charactercontroller
 
-**Version 0.1.0 — Base Controller / BaseLocomotion baseline only**
+**Current package version: see `package.json` (latest test build: `0.1.1-preview.1`).**
+
+**0.1.0** was the **Base Controller / BaseLocomotion** baseline tag (`v0.1.0-base-locomotion`). **0.1.1-preview.1** is a **preview test build** for Hub / fresh-project validation: **Humanoid Phase 1** wizard improvements, compatibility reporting, camera profile binding fixes, and visual alignment — still **baseline locomotion only**, **not** combat-ready, **not** feature-complete.
 
 Unity package: third-person **CharacterController** locomotion, **Cinemachine 3** orbit camera rig, **Character Setup Wizard**, default **CCS_Default_TP_Follow_CameraProfile**, default **CCS_Base_locomotion_controller** with **CCS_AnimatorDriver** (root motion off).
 
-This is **not** a full controller product, **not** combat-ready, and **not** feature-complete. It is the clean **baseline milestone** for basic locomotion and camera setup.
-
-## Scope (this release)
+## Scope (baseline + preview)
 
 - Base controller + camera-relative move (Input System)
 - Basic third-person Cinemachine rig + default camera profile support
-- Setup wizard: player + rig + animator + animator driver wiring
+- Setup wizard: player + rig + Humanoid-oriented model setup (Animator/Avatar reuse, `ModelOffsetRoot`, ground align) + animator driver wiring
+- **Preview:** Console **Phase 1 compatibility report** after create; menu to **recreate** default camera profile if import binding breaks
 - BaseLocomotion animator parameters driven from gameplay state
 
 ## Not included / not promised
@@ -26,11 +27,17 @@ Add to `Packages/manifest.json`:
 "com.crazycarrot.branding": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.branding.git"
 ```
 
-Or pin this baseline tag:
+Or pin a **release / test** tag (examples):
 
 ```json
 "com.crazycarrot.charactercontroller": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller.git#v0.1.0-base-locomotion"
 ```
+
+```json
+"com.crazycarrot.charactercontroller": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller.git#v0.1.1-preview.1"
+```
+
+Omit the `#tag` fragment to follow **`main`** (latest commits).
 
 ## Layout
 

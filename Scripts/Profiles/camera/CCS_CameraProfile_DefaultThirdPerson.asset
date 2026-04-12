@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f2e4c8a01d3b4c5e86b7d9a0c1e2f3a4, type: 3}
   m_Name: CCS_CameraProfile_DefaultThirdPerson
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier: CCS.CharacterController.Runtime::CCS.CharacterController.CCS_CameraProfile
   fieldOfView: 58
   nearClipPlane: 0.1
   farClipPlane: 5000

@@ -71,5 +71,31 @@ namespace CCS.CharacterController
         [Header("Priority")]
         [Tooltip("Cinemachine camera priority.")]
         public int priority = 20;
+
+        /// <summary>
+        /// Creates a runtime instance with the same tuning as <c>CCS_Default_TP_Follow_CameraProfile</c> (for editor repair / factory).
+        /// </summary>
+        public static CCS_CameraProfile CreateBaselineDefaultsInstance()
+        {
+            CCS_CameraProfile profile = CreateInstance<CCS_CameraProfile>();
+            profile.fieldOfView = 58f;
+            profile.nearClipPlane = 0.1f;
+            profile.farClipPlane = 5000f;
+            profile.orbitRadius = 4f;
+            profile.targetOffset = new Vector3(0.18f, 0f, 0f);
+            profile.verticalAxisMin = -20f;
+            profile.verticalAxisCenter = 12f;
+            profile.verticalAxisMax = 80f;
+            profile.verticalWrap = false;
+            profile.horizontalWrap = true;
+            profile.positionDamping = new Vector3(0.22f, 0.22f, 0.22f);
+            profile.rotationDamping = new Vector3(0.28f, 0.28f, 0.28f);
+            profile.composerDamping = new Vector2(0.32f, 0.28f);
+            profile.composerTargetOffset = Vector3.zero;
+            profile.mouseOrbitSpeed = 0.26f;
+            profile.priority = 20;
+            profile.name = "CCS_Default_TP_Follow_CameraProfile";
+            return profile;
+        }
     }
 }
