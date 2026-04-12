@@ -1,8 +1,8 @@
 {
   "name": "com.crazycarrot.charactercontroller",
-  "version": "0.1.4-preview.1",
+  "version": "0.1.5-preview.1",
   "displayName": "CCS Character Controller (BaseLocomotion)",
-  "description": "0.1.4-preview.1 — Phase: Base Controller. Wizard Humanoid pre-validation; Avatar handoff to ModelOffsetRoot locomotion Animator + Rebind; duplicate Animator isolation. Not feature-complete.",
+  "description": "0.1.5-preview.1 — Phase: Base Controller. Same as 0.1.4; fixes Scripts/Profiles/camera.meta line endings (LF) for Unity YAML/GUID import when Hub copies to Assets.",
   "unity": "6000.0",
   "documentationUrl": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller",
   "changelogUrl": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/blob/main/CHANGELOG.md",

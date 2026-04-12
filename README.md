@@ -1,7 +1,7 @@
 # CCS Character Controller
 
 **Package:** `com.crazycarrot.charactercontroller`  
-**Version:** `0.1.4-preview.1` (`package.json`)  
+**Version:** `0.1.5-preview.1` (`package.json`)  
 **Phase:** **Base Controller** — Humanoid-only Phase 1: wizard validates Humanoid before create, single locomotion `Animator` on `ModelOffsetRoot` with Avatar handoff + `Rebind`. Basic locomotion only. Not feature-complete. Not combat-ready.
 
 ## Install (Unity Package Manager — Git URL)
@@ -16,7 +16,7 @@
 Optional pin:
 
 ```json
-"com.crazycarrot.charactercontroller": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller.git#v0.1.4-preview.1"
+"com.crazycarrot.charactercontroller": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller.git#v0.1.5-preview.1"
 ```
 
 ## Dependencies
