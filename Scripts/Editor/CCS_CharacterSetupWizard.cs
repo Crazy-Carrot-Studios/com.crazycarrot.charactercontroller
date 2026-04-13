@@ -12,9 +12,8 @@ using CCS.CharacterController;
 //==============================================================================
 // CCS Script Summary
 // Name: CCS_CharacterSetupWizard
-// Purpose: Model-agnostic third-person setup: build CCSPlayer + optional CCSCameraRig, wire Cinemachine 3,
-//          CharacterController locomotion (no Mecanim driver), camera tuning on CCS_CameraRig (serialized fields).
-//          Optional visual prefab under ModelOffsetRoot; all Animators under that subtree are disabled for a static mesh.
+// Purpose: Baseline setup: CCSPlayer (CharacterController + walk/sprint) and optional CCSCameraRig (Cinemachine 3).
+//          Wires Gameplay Move, Look, Sprint. Optional model under ModelOffsetRoot; Animators there are disabled.
 //          Before creating, removes prior CCS players, rigs, and MainCamera-tagged cameras in loaded scenes.
 // Placement: Editor / menu CCS/Character Controller/Create Character.
 // Author: James Schilz
@@ -48,7 +47,9 @@ namespace CCS.CharacterController.Editor
         private InputActionAsset inputActionsAsset;
         private bool autoCreatePackageInputAsset = true;
         private bool createCameraRigIfMissing = true;
-        private float defaultMoveSpeed = 4.5f;
+        private float defaultWalkSpeed = 4.5f;
+        private float defaultSprintSpeed = 8f;
+        private float defaultGravity = -30f;
         private float defaultRotationSmoothTime = 0.12f;
         private float defaultInputDeadZone = 0.08f;
         private bool enableWizardDebugLogs;
@@ -107,7 +108,9 @@ namespace CCS.CharacterController.Editor
                 autoCreatePackageInputAsset);
 
             CCSEditorStyles.DrawSectionLabel("Defaults");
-            defaultMoveSpeed = EditorGUILayout.FloatField(new GUIContent("Move speed"), defaultMoveSpeed);
+            defaultWalkSpeed = EditorGUILayout.FloatField(new GUIContent("Walk speed"), defaultWalkSpeed);
+            defaultSprintSpeed = EditorGUILayout.FloatField(new GUIContent("Sprint speed"), defaultSprintSpeed);
+            defaultGravity = EditorGUILayout.FloatField(new GUIContent("Gravity"), defaultGravity);
             defaultRotationSmoothTime = EditorGUILayout.FloatField(
                 new GUIContent("Rotation smooth time"),
                 defaultRotationSmoothTime);
@@ -143,10 +146,11 @@ namespace CCS.CharacterController.Editor
 
                 InputActionReference moveReference = ResolveMoveActionReference(workingAsset);
                 InputActionReference lookReference = ResolveLookActionReference(workingAsset);
-                if (moveReference == null || lookReference == null)
+                InputActionReference sprintReference = ResolveSprintActionReference(workingAsset);
+                if (moveReference == null || lookReference == null || sprintReference == null)
                 {
                     Debug.LogError(
-                        "[CCS_CharacterSetupWizard] Could not resolve Move and/or Look from the input asset. Check Gameplay map actions.",
+                        "[CCS_CharacterSetupWizard] Could not resolve Move, Look, and/or Sprint from the input asset. Check Gameplay map.",
                         this);
                     LogCharacterSetupFailed();
                     return;
@@ -154,7 +158,7 @@ namespace CCS.CharacterController.Editor
 
                 RemoveExistingCcsCharacterSetupFromOpenScenes();
 
-                GameObject playerRoot = CreatePlayerHierarchy(moveReference);
+                GameObject playerRoot = CreatePlayerHierarchy(moveReference, sprintReference);
                 if (playerRoot == null)
                 {
                     LogCharacterSetupFailed();
@@ -194,7 +198,7 @@ namespace CCS.CharacterController.Editor
                 if (!createCameraRigIfMissing || cameraRigRoot != null)
                 {
                     Debug.Log(
-                        "[CCS_CharacterSetupWizard] Character setup finished. CharacterController locomotion + serialized camera tuning on CCS_CameraRig (no packaged Mecanim).",
+                        "[CCS_CharacterSetupWizard] Baseline ready: walk/sprint CharacterController, Cinemachine rig (serialized tuning only).",
                         playerRoot);
                 }
             }
@@ -271,6 +275,26 @@ namespace CCS.CharacterController.Editor
             return InputActionReference.Create(lookAction);
         }
 
+        private InputActionReference ResolveSprintActionReference(InputActionAsset asset)
+        {
+            if (asset == null)
+            {
+                return null;
+            }
+
+            InputActionMap gameplayMap = asset.FindActionMap("Gameplay", throwIfNotFound: false);
+            InputAction sprintAction = gameplayMap != null ? gameplayMap.FindAction("Sprint", throwIfNotFound: false) : null;
+            if (sprintAction == null)
+            {
+                Debug.LogError(
+                    "[CCS_CharacterSetupWizard] Gameplay/Sprint was not found on the input asset.",
+                    this);
+                return null;
+            }
+
+            return InputActionReference.Create(sprintAction);
+        }
+
         private void RemoveExistingCcsCharacterSetupFromOpenScenes()
         {
             HashSet<GameObject> roots = new HashSet<GameObject>();
@@ -325,7 +349,7 @@ namespace CCS.CharacterController.Editor
             }
         }
 
-        private GameObject CreatePlayerHierarchy(InputActionReference moveReference)
+        private GameObject CreatePlayerHierarchy(InputActionReference moveReference, InputActionReference sprintReference)
         {
             GameObject playerRoot = new GameObject(GetUniqueRootName("CCSPlayer"));
             Undo.RegisterCreatedObjectUndo(playerRoot, "Create CCSPlayer");
@@ -402,7 +426,10 @@ namespace CCS.CharacterController.Editor
                 look.transform,
                 characterVisualRootForFacing,
                 moveReference,
-                defaultMoveSpeed,
+                sprintReference,
+                defaultWalkSpeed,
+                defaultSprintSpeed,
+                defaultGravity,
                 defaultRotationSmoothTime,
                 defaultInputDeadZone,
                 enableWizardDebugLogs);
@@ -469,8 +496,8 @@ namespace CCS.CharacterController.Editor
 
             StringBuilder sb = new StringBuilder(256);
             sb.AppendLine("[CCS] Setup report:");
-            sb.AppendLine("* Locomotion: Unity CharacterController + CCS_CharacterController (no CCS_AnimatorDriver).");
-            sb.AppendLine("* Camera: CCS_CameraRig serialized tuning (no camera profile asset).");
+            sb.AppendLine("* Movement: CharacterController + walk/sprint (Gameplay/Move + Sprint).");
+            sb.AppendLine("* Camera: CCS_CameraRig — serialized orbit/lens/damping only.");
             sb.AppendLine("* Model slot used: " + modelPrefabSlotUsed + ", instance created: " + modelInstanceCreated);
             sb.AppendLine("* Visual ground alignment: " + groundLine);
             Debug.Log(sb.ToString(), playerRoot);
@@ -688,7 +715,7 @@ namespace CCS.CharacterController.Editor
                 Undo.RecordObject(renderCamera, "Apply CCS camera serialized tuning");
             }
 
-            cameraRig.ApplySerializedCameraTuning();
+            cameraRig.ApplySerializedRigSettings();
 
             ValidateAndLogCcsThirdPersonRig(
                 rigRoot,
@@ -1118,7 +1145,10 @@ namespace CCS.CharacterController.Editor
             Transform lookTarget,
             Transform visualRoot,
             InputActionReference moveReference,
-            float moveSpeed,
+            InputActionReference sprintReference,
+            float walkSpeed,
+            float sprintSpeed,
+            float gravity,
             float rotationSmoothTime,
             float inputDeadZone,
             bool debugLogs)
@@ -1129,7 +1159,10 @@ namespace CCS.CharacterController.Editor
             serializedObject.FindProperty("cameraLookTarget").objectReferenceValue = lookTarget;
             serializedObject.FindProperty("characterVisualRoot").objectReferenceValue = visualRoot;
             serializedObject.FindProperty("moveAction").objectReferenceValue = moveReference;
-            serializedObject.FindProperty("moveSpeed").floatValue = moveSpeed;
+            serializedObject.FindProperty("sprintAction").objectReferenceValue = sprintReference;
+            serializedObject.FindProperty("walkSpeed").floatValue = walkSpeed;
+            serializedObject.FindProperty("sprintSpeed").floatValue = sprintSpeed;
+            serializedObject.FindProperty("gravity").floatValue = gravity;
             serializedObject.FindProperty("rotationSmoothTime").floatValue = rotationSmoothTime;
             serializedObject.FindProperty("inputDeadZone").floatValue = inputDeadZone;
             serializedObject.FindProperty("enableDebugLogs").boolValue = debugLogs;

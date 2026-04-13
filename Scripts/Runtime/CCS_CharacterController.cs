@@ -4,12 +4,13 @@ using UnityEngine.InputSystem;
 //==============================================================================
 // CCS Script Summary
 // Name: CCS_CharacterController
-// Purpose: Unity CharacterController locomotion with camera-relative move (LateUpdate),
-//          yaw toward move on a visual root. No Animator / Mecanim coupling.
+// Purpose: Baseline third-person movement using Unity CharacterController: camera-relative
+//          XZ motion, walk/sprint speed, gravity, smooth yaw toward move direction on a visual root.
+//          No Animator, profiles, or jump/crouch in this baseline.
 // Required components: UnityEngine.CharacterController on this GameObject.
 // Placement: CCSPlayer root (tag Player).
 // Author: James Schilz
-// Date: 2026-04-12
+// Date: 2026-04-10
 //==============================================================================
 
 namespace CCS.CharacterController
@@ -22,37 +23,61 @@ namespace CCS.CharacterController
 
         [Header("References")]
         [SerializeField]
+        [Tooltip("Unity CharacterController that performs collision and Move().")]
         private UnityEngine.CharacterController characterMotor;
 
         [SerializeField]
+        [Tooltip("World-space point the follow camera tracks (usually near the head).")]
         private Transform cameraFollowTarget;
 
         [SerializeField]
+        [Tooltip("World-space point the camera aims at (often slightly forward of the follow target).")]
         private Transform cameraLookTarget;
 
         [SerializeField]
+        [Tooltip("Transform rotated toward movement (e.g. CharacterVisuals/ModelOffsetRoot). Leave unassigned to skip facing.")]
         private Transform characterVisualRoot;
 
         [Header("Movement")]
         [SerializeField]
-        private float moveSpeed = 4.5f;
+        [Tooltip("Planar speed when moving without sprint input.")]
+        private float walkSpeed = 4.5f;
 
         [SerializeField]
+        [Tooltip("Planar speed when sprint is held and there is movement input.")]
+        private float sprintSpeed = 8f;
+
+        [SerializeField]
+        [Tooltip("Smoothing time for rotating the visual root toward the move direction (seconds).")]
         private float rotationSmoothTime = 0.12f;
 
         [SerializeField]
+        [Tooltip("Move input below this magnitude is treated as no input.")]
         private float inputDeadZone = 0.08f;
+
+        [SerializeField]
+        [Tooltip("Gravity acceleration applied along Y while airborne (typically negative, e.g. -30).")]
+        private float gravity = -30f;
 
         [Header("Input")]
         [SerializeField]
+        [Tooltip("Input Actions: Gameplay/Move (Vector2).")]
         private InputActionReference moveAction;
+
+        [SerializeField]
+        [Tooltip("Input Actions: Gameplay/Sprint (Button). Held + move input uses sprint speed.")]
+        private InputActionReference sprintAction;
 
         [Header("Debug")]
         [SerializeField]
+        [Tooltip("When enabled, logs movement diagnostics (can be noisy).")]
         private bool enableDebugLogs;
 
+        // Cached gameplay camera for camera-relative axes.
         private Camera cachedMainCamera;
+        // Current vertical velocity for CharacterController.Move (gravity).
         private float verticalVelocity;
+        // SmoothDampAngle velocity for facing.
         private float rotationSmoothVelocity;
         private bool hasMovementInputThisFrame;
         private Vector2 lastMoveInput;
@@ -81,7 +106,18 @@ namespace CCS.CharacterController
             else
             {
                 Debug.LogError(
-                    "[CCS_CharacterController] Move InputActionReference is not assigned. Assign Gameplay/Move from your Input Actions asset.",
+                    "[CCS_CharacterController] Move InputActionReference is not assigned. Assign Gameplay/Move.",
+                    this);
+            }
+
+            if (sprintAction != null && sprintAction.action != null)
+            {
+                sprintAction.action.Enable();
+            }
+            else
+            {
+                Debug.LogError(
+                    "[CCS_CharacterController] Sprint InputActionReference is not assigned. Assign Gameplay/Sprint.",
                     this);
             }
         }
@@ -91,6 +127,11 @@ namespace CCS.CharacterController
             if (moveAction != null && moveAction.action != null)
             {
                 moveAction.action.Disable();
+            }
+
+            if (sprintAction != null && sprintAction.action != null)
+            {
+                sprintAction.action.Disable();
             }
         }
 
@@ -119,8 +160,14 @@ namespace CCS.CharacterController
                 planarDirection = Vector3.zero;
             }
 
+            bool sprintHeld = sprintAction != null
+                && sprintAction.action != null
+                && sprintAction.action.IsPressed();
+            bool useSprint = sprintHeld && hasMovementInputThisFrame;
+            float planarSpeed = useSprint ? sprintSpeed : walkSpeed;
+
             ApplyGravity();
-            Vector3 planarVelocity = planarDirection * moveSpeed;
+            Vector3 planarVelocity = planarDirection * planarSpeed;
             Vector3 motion = new Vector3(planarVelocity.x, verticalVelocity, planarVelocity.z) * Time.deltaTime;
             characterMotor.Move(motion);
 
@@ -128,7 +175,9 @@ namespace CCS.CharacterController
 
             if (enableDebugLogs && hasMovementInputThisFrame)
             {
-                Debug.Log($"[CCS_CharacterController] Move input: {moveInput} | Planar: {planarDirection}", this);
+                Debug.Log(
+                    $"[CCS_CharacterController] Move: {moveInput} | Sprint: {useSprint} | Speed: {planarSpeed}",
+                    this);
             }
         }
 
@@ -142,7 +191,7 @@ namespace CCS.CharacterController
             if (cachedMainCamera == null)
             {
                 Debug.LogWarning(
-                    "[CCS_CharacterController] No camera tagged MainCamera. Movement cannot be camera-relative until one exists.",
+                    "[CCS_CharacterController] No camera tagged MainCamera. Movement uses world axes until one exists.",
                     this);
             }
         }
@@ -158,7 +207,7 @@ namespace CCS.CharacterController
             if (cachedMainCamera == null && enableDebugLogs)
             {
                 Debug.LogWarning(
-                    "[CCS_CharacterController] No MainCamera available this frame; planar basis falls back to world axes.",
+                    "[CCS_CharacterController] No MainCamera this frame; planar basis falls back to world axes.",
                     this);
             }
         }
@@ -172,7 +221,7 @@ namespace CCS.CharacterController
 
             if (characterMotor == null)
             {
-                Debug.LogError("[CCS_CharacterController] CharacterController component is missing on this GameObject.", this);
+                Debug.LogError("[CCS_CharacterController] CharacterController is missing on this GameObject.", this);
             }
 
             if (cameraFollowTarget == null)
@@ -247,13 +296,11 @@ namespace CCS.CharacterController
             }
             else
             {
-                verticalVelocity += Physics.gravity.y * Time.deltaTime;
+                verticalVelocity += gravity * Time.deltaTime;
             }
         }
 
-        /// <summary>
-        /// Ensures at least one <see cref="UnityEngine.CharacterController.Move"/> runs so <c>isGrounded</c> can resolve on spawn.
-        /// </summary>
+        // Runs at least one Move so isGrounded can settle on spawn.
         private void WarmUpMotorGrounding()
         {
             if (characterMotor == null)
@@ -305,14 +352,11 @@ namespace CCS.CharacterController
 
         public bool IsMoving => hasMovementInputThisFrame;
 
-        /// <summary>Raw Gameplay/Move Vector2 from the last tick.</summary>
-        public Vector2 LocomotionMoveInput => lastMoveInput;
+        public Vector2 LastMoveInput => lastMoveInput;
 
-        public bool IsMotorGrounded => characterMotor != null && characterMotor.isGrounded;
+        public bool IsGrounded => characterMotor != null && characterMotor.isGrounded;
 
-        public float LocomotionVerticalVelocity => verticalVelocity;
-
-        public float LocomotionYawVelocityDegreesPerSecond => rotationSmoothVelocity;
+        public float VerticalVelocity => verticalVelocity;
 
         #endregion
     }

@@ -4,11 +4,22 @@ All notable changes to this package are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.1] — 2026-04-10
+
+### Added
+
+- **Sprint** in baseline: **`CCS_CharacterController`** uses **`Gameplay/Sprint`** with **walk** / **sprint** speeds and serialized **gravity**.
+
+### Changed
+
+- **`CCS_CameraRig`**: Inspector groups and tooltips; **`ApplySerializedRigSettings`** (replaces **`ApplySerializedCameraTuning`**). Missing **player** reference is a warning, not an error.
+- **Input validation**: **Move**, **Look**, **Sprint** required; other Gameplay actions optional.
+
 ## [0.2.0] — 2026-04-10
 
 ### Breaking
 
-- Removed **`CCS_CameraProfile`** and all **camera profile** assets under **`Scripts/Profiles`**. **`CCS_CameraRig`** tuning is **serialized on the component** only (`ApplySerializedCameraTuning`).
+- Removed **`CCS_CameraProfile`** and all **camera profile** assets under **`Scripts/Profiles`**. **`CCS_CameraRig`** tuning is **serialized on the component** only.
 - Removed **`CCS_AnimatorDriver`**, packaged **Mecanim** controller (**`CCS_Base_locomotion_controller`**) and the **`Animations/`** tree. Locomotion is **`CharacterController` + `CCS_CharacterController`** only.
 - **Character Setup Wizard** no longer assigns Humanoid locomotion or validates Humanoid-only models. With an optional model, it **disables every `Animator` under `ModelOffsetRoot`** for a static visual.
 - Removed sample scene **`Scenes/SCN_CCS_Controller_Test.unity`**; use **Create Character** in your own scene.

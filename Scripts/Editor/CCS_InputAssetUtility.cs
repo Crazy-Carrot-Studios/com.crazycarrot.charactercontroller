@@ -96,12 +96,12 @@ namespace CCS.CharacterController.Editor
             }
             else
             {
-                valid &= LogIfActionMissing(asset, gameplay, "Move");
-                valid &= LogIfActionMissing(asset, gameplay, "Look");
-                valid &= LogIfActionMissing(asset, gameplay, "Jump");
-                valid &= LogIfActionMissing(asset, gameplay, "Sprint");
-                valid &= LogIfActionMissing(asset, gameplay, "Crouch");
-                valid &= LogIfActionMissing(asset, gameplay, "Interact");
+                valid &= LogIfActionMissing(asset, gameplay, "Move", required: true);
+                valid &= LogIfActionMissing(asset, gameplay, "Look", required: true);
+                valid &= LogIfActionMissing(asset, gameplay, "Sprint", required: true);
+                LogIfActionMissing(asset, gameplay, "Jump", required: false);
+                LogIfActionMissing(asset, gameplay, "Crouch", required: false);
+                LogIfActionMissing(asset, gameplay, "Interact", required: false);
             }
 
             if (asset.FindActionMap("UI", throwIfNotFound: false) == null)
@@ -116,19 +116,29 @@ namespace CCS.CharacterController.Editor
 
             if (enableDebugLogs && valid)
             {
-                Debug.Log("[CCS_InputAssetUtility] Input asset validation passed for required Gameplay actions.", asset);
+                Debug.Log(
+                    "[CCS_InputAssetUtility] Input asset validation passed (Gameplay: Move, Look, Sprint required).",
+                    asset);
             }
         }
 
-        // Returns false and logs when a named action is missing from the given map.
-        private static bool LogIfActionMissing(Object context, InputActionMap map, string actionName)
+        // Logs error (baseline required) or warning (optional) when an action is missing.
+        private static bool LogIfActionMissing(Object context, InputActionMap map, string actionName, bool required)
         {
-            if (map.FindAction(actionName, throwIfNotFound: false) == null)
+            if (map.FindAction(actionName, throwIfNotFound: false) != null)
             {
-                Debug.LogError($"[CCS_InputAssetUtility] Gameplay action '{actionName}' is missing.", context);
+                return true;
+            }
+
+            if (required)
+            {
+                Debug.LogError($"[CCS_InputAssetUtility] Required Gameplay action '{actionName}' is missing.", context);
                 return false;
             }
 
+            Debug.LogWarning(
+                $"[CCS_InputAssetUtility] Optional Gameplay action '{actionName}' is missing (baseline does not require it).",
+                context);
             return true;
         }
 

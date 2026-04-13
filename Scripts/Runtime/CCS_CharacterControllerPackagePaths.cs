@@ -4,9 +4,7 @@ using UnityEditor;
 
 namespace CCS.CharacterController
 {
-    /// <summary>
-    /// Paths for package assets. Supports UPM (<see cref="UpmRoot"/>) and embedded (<see cref="EmbeddedRoot"/>).
-    /// </summary>
+    // Resolves package root for UPM install (UpmRoot) or Hub-embedded copy (EmbeddedRoot).
     public static class CCS_CharacterControllerPackagePaths
     {
         public const string PackageId = "com.crazycarrot.charactercontroller";

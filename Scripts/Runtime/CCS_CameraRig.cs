@@ -9,92 +9,116 @@ using UnityEditor;
 //==============================================================================
 // CCS Script Summary
 // Name: CCS_CameraRig
-// Purpose: Cinemachine 3 third-person rig; tuning is serialized on this component (no ScriptableObject profile).
+// Purpose: Cinemachine 3 third-person orbit camera. All tuning is serialized on this
+//          component; no profiles or external camera assets required.
 // Required components: CinemachineCamera + CinemachineOrbitalFollow + CinemachineRotationComposer
 //          + CinemachineInputAxisController on child "Cinemachine Third Person Follow Cam".
-// Placement: CCSCameraRig root (never parented under the player).
+// Placement: CCSCameraRig root (not parented under the player).
 // Author: James Schilz
-// Date: 2026-04-12
+// Date: 2026-04-10
 //==============================================================================
 
 namespace CCS.CharacterController
 {
     public sealed class CCS_CameraRig : MonoBehaviour
     {
-        private const float MouseOrbitVerticalGainRatio = 0.875f;
-
         #region Variables
 
         [Header("References")]
         [SerializeField]
+        [Tooltip("Transform the orbit camera follows (e.g. CameraFollowTarget on the player).")]
         private Transform cameraFollowTarget;
 
         [SerializeField]
+        [Tooltip("Transform the camera aims at (e.g. CameraLookTarget on the player).")]
         private Transform cameraLookTarget;
 
         [SerializeField]
+        [Tooltip("Unity camera with CinemachineBrain that renders the game view.")]
         private Camera mainCamera;
 
         [SerializeField]
+        [Tooltip("Third-person CinemachineCamera (vcam) driving orbit and aim.")]
         private CinemachineCamera cinemachineCamera;
 
-        [Header("Character Link")]
         [SerializeField]
+        [Tooltip("Player CharacterController script for optional cross-links and validation.")]
         private CCS_CharacterController playerCharacterController;
 
-        [Header("Lens")]
+        [Header("Orbit Settings")]
         [SerializeField]
-        private float fieldOfView = 58f;
+        [Min(0.01f)]
+        [Tooltip("Base mouse/gamepad sensitivity applied to Look Orbit X on the Cinemachine Input Axis Controller.")]
+        private float mouseOrbitSpeed = 0.26f;
 
         [SerializeField]
-        private float nearClipPlane = 0.1f;
+        [Min(0.01f)]
+        [Tooltip("Multiplier for vertical orbit gain relative to horizontal (Look Orbit Y uses mouseOrbitSpeed * this).")]
+        private float verticalOrbitSpeedMultiplier = 0.875f;
 
         [SerializeField]
-        private float farClipPlane = 5000f;
-
-        [SerializeField]
-        private int cinemachinePriority = 20;
-
-        [Header("Orbit")]
-        [SerializeField]
+        [Tooltip("Distance from the follow target in sphere orbit mode.")]
         private float orbitRadius = 4f;
 
         [SerializeField]
-        private Vector3 orbitTargetOffset = new Vector3(0.18f, 0f, 0f);
+        [Tooltip("Local offset from the follow target used by orbital follow (e.g. slight over-shoulder).")]
+        private Vector3 targetOffset = new Vector3(0.18f, 0f, 0f);
+
+        [Header("Pitch Limits")]
+        [SerializeField]
+        [Tooltip("Minimum vertical orbit angle in degrees.")]
+        private float minVerticalAngle = -20f;
 
         [SerializeField]
-        private float verticalAxisMin = -20f;
+        [Tooltip("Maximum vertical orbit angle in degrees.")]
+        private float maxVerticalAngle = 80f;
 
         [SerializeField]
-        private float verticalAxisCenter = 12f;
+        [Tooltip("Starting vertical angle in degrees (clamped between min and max).")]
+        private float defaultVerticalAngle = 12f;
+
+        [Header("Orbit Axes")]
+        [SerializeField]
+        [Tooltip("When true, horizontal orbit wraps (infinite yaw).")]
+        private bool horizontalAxisWrap = true;
 
         [SerializeField]
-        private float verticalAxisMax = 80f;
-
-        [SerializeField]
+        [Tooltip("When true, vertical axis wraps (unusual for third-person; usually off).")]
         private bool verticalAxisWrap;
 
+        [Header("Camera")]
         [SerializeField]
-        private bool horizontalAxisWrap = true;
+        [Tooltip("Field of view on the vcam lens and main camera.")]
+        private float fieldOfView = 58f;
+
+        [SerializeField]
+        [Tooltip("Near clip plane on the vcam lens and main camera.")]
+        private float nearClipPlane = 0.1f;
+
+        [SerializeField]
+        [Tooltip("Far clip plane on the vcam lens and main camera.")]
+        private float farClipPlane = 5000f;
+
+        [SerializeField]
+        [Tooltip("Cinemachine virtual camera priority (higher wins over other vcams).")]
+        private int priority = 20;
 
         [Header("Damping")]
         [SerializeField]
+        [Tooltip("Orbital follow position damping in tracker settings.")]
         private Vector3 positionDamping = new Vector3(0.22f, 0.22f, 0.22f);
 
         [SerializeField]
+        [Tooltip("Orbital follow rotation damping in tracker settings.")]
         private Vector3 rotationDamping = new Vector3(0.28f, 0.28f, 0.28f);
 
         [SerializeField]
+        [Tooltip("Rotation composer screen-space damping (x, y).")]
         private Vector2 composerDamping = new Vector2(0.32f, 0.28f);
 
-        [Header("Framing")]
         [SerializeField]
+        [Tooltip("Aim target offset applied by the rotation composer.")]
         private Vector3 composerTargetOffset;
-
-        [Header("Orbit Input")]
-        [SerializeField]
-        [Min(0.01f)]
-        private float mouseOrbitSpeed = 0.26f;
 
         #endregion
 
@@ -103,8 +127,8 @@ namespace CCS.CharacterController
         private void Awake()
         {
             ApplyCinemachineTargets();
-            ApplySerializedCameraTuning();
-            ApplyOrbitMouseGains();
+            ApplySerializedRigSettings();
+            ApplyOrbitInputGains();
             ValidateReferences();
         }
 
@@ -114,8 +138,8 @@ namespace CCS.CharacterController
             if (!Application.isPlaying)
             {
                 ApplyCinemachineTargets();
-                ApplySerializedCameraTuning();
-                ApplyOrbitMouseGains();
+                ApplySerializedRigSettings();
+                ApplyOrbitInputGains();
             }
         }
 #endif
@@ -124,8 +148,8 @@ namespace CCS.CharacterController
 
         #region Public Methods
 
-        /// <summary>Pushes serialized tuning to the vcam, composer, and main camera.</summary>
-        public void ApplySerializedCameraTuning()
+        // Pushes all serialized fields to the vcam, orbital follow, composer, input gains, and main camera.
+        public void ApplySerializedRigSettings()
         {
             if (cinemachineCamera == null)
             {
@@ -137,7 +161,7 @@ namespace CCS.CharacterController
             lens.NearClipPlane = nearClipPlane;
             lens.FarClipPlane = farClipPlane;
             cinemachineCamera.Lens = lens;
-            cinemachineCamera.Priority = cinemachinePriority;
+            cinemachineCamera.Priority = priority;
 
             CinemachineOrbitalFollow orbitalFollow = cinemachineCamera.GetComponent<CinemachineOrbitalFollow>();
             if (orbitalFollow != null)
@@ -145,7 +169,7 @@ namespace CCS.CharacterController
                 orbitalFollow.OrbitStyle = CinemachineOrbitalFollow.OrbitStyles.Sphere;
                 orbitalFollow.Radius = orbitRadius;
                 orbitalFollow.RecenteringTarget = CinemachineOrbitalFollow.ReferenceFrames.TrackingTarget;
-                orbitalFollow.TargetOffset = orbitTargetOffset;
+                orbitalFollow.TargetOffset = targetOffset;
 
                 TrackerSettings tracker = orbitalFollow.TrackerSettings;
                 tracker.BindingMode = BindingMode.LockToTargetWithWorldUp;
@@ -154,10 +178,10 @@ namespace CCS.CharacterController
                 orbitalFollow.TrackerSettings = tracker;
 
                 InputAxis vertical = orbitalFollow.VerticalAxis;
-                vertical.Range = new Vector2(verticalAxisMin, verticalAxisMax);
+                vertical.Range = new Vector2(minVerticalAngle, maxVerticalAngle);
                 vertical.Wrap = verticalAxisWrap;
                 vertical.Center = Mathf.Clamp(
-                    verticalAxisCenter,
+                    defaultVerticalAngle,
                     vertical.Range.x + 0.01f,
                     vertical.Range.y - 0.01f);
                 vertical.Value = vertical.Center;
@@ -203,11 +227,14 @@ namespace CCS.CharacterController
                 }
             }
 #endif
+
+            ApplyOrbitInputGains();
         }
 
-        public void RefreshOrbitMouseGains()
+        // Re-applies mouse/gamepad gains on the Cinemachine Input Axis Controller (safe to call after inspector edits).
+        public void RefreshOrbitInputGains()
         {
-            ApplyOrbitMouseGains();
+            ApplyOrbitInputGains();
         }
 
         public Vector3 GetFlattenedCameraForward()
@@ -248,7 +275,7 @@ namespace CCS.CharacterController
 
         #region Private Methods
 
-        private void ApplyOrbitMouseGains()
+        private void ApplyOrbitInputGains()
         {
             if (cinemachineCamera == null)
             {
@@ -264,7 +291,7 @@ namespace CCS.CharacterController
             axisController.SynchronizeControllers();
 
             float gainX = mouseOrbitSpeed;
-            float gainY = -mouseOrbitSpeed * MouseOrbitVerticalGainRatio;
+            float gainY = -mouseOrbitSpeed * verticalOrbitSpeedMultiplier;
 
             for (int i = 0; i < axisController.Controllers.Count; i++)
             {
@@ -341,21 +368,23 @@ namespace CCS.CharacterController
                 if (cinemachineCamera.GetComponent<CinemachineOrbitalFollow>() == null)
                 {
                     Debug.LogError(
-                        "[CCS_CameraRig] CinemachineOrbitalFollow is missing on the Cinemachine Third Person Follow Cam.",
+                        "[CCS_CameraRig] CinemachineOrbitalFollow is missing on the vcam GameObject.",
                         this);
                 }
 
                 if (cinemachineCamera.GetComponent<CinemachineInputAxisController>() == null)
                 {
                     Debug.LogError(
-                        "[CCS_CameraRig] CinemachineInputAxisController is missing on the vcam.",
+                        "[CCS_CameraRig] CinemachineInputAxisController is missing on the vcam GameObject.",
                         this);
                 }
             }
 
             if (playerCharacterController == null)
             {
-                Debug.LogError("[CCS_CameraRig] Player character controller reference is not assigned.", this);
+                Debug.LogWarning(
+                    "[CCS_CameraRig] Player character controller is not assigned (optional but recommended).",
+                    this);
             }
         }
 

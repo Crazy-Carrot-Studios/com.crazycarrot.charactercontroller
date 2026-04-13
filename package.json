@@ -1,8 +1,8 @@
 {
   "name": "com.crazycarrot.charactercontroller",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "displayName": "CCS Character Controller (Baseline)",
-  "description": "0.2.0 — Baseline: Unity CharacterController + camera-relative movement, Cinemachine 3 orbit rig with tuning serialized on CCS_CameraRig (no camera profile assets). Optional static visual mesh; no packaged Mecanim locomotion.",
+  "description": "0.2.1 — Baseline: CharacterController walk/sprint + gravity, Cinemachine 3 rig (serialized tuning only). Gameplay Move/Look/Sprint. No camera profiles or Mecanim in package.",
   "unity": "6000.0",
   "documentationUrl": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller",
   "changelogUrl": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/blob/main/CHANGELOG.md",
