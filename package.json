@@ -1,8 +1,8 @@
 {
   "name": "com.crazycarrot.charactercontroller",
-  "version": "0.1.10-preview.1",
+  "version": "0.1.11-preview.1",
   "displayName": "CCS Character Controller (BaseLocomotion)",
-  "description": "0.1.10-preview.1 — Phase: Base Controller. Motor ground warm-up + animator Start sync to avoid false Fall state on spawn.",
+  "description": "0.1.11-preview.1 — Phase: Base Controller. Camera profile utility compatible with older bootstrapped CCS_CameraProfile API.",
   "unity": "6000.0",
   "documentationUrl": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller",
   "changelogUrl": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/blob/main/CHANGELOG.md",

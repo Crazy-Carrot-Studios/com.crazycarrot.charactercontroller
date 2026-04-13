@@ -174,7 +174,13 @@ namespace CCS.CharacterController.Editor
             AssetDatabase.Refresh();
 
             string objectName = Path.GetFileNameWithoutExtension(assetPath);
-            CCS_CameraProfile profile = CCS_CameraProfile.CreateBaselineDefaultsInstance(objectName);
+            // Use parameterless factory so bootstrapped projects with an older CCS_CameraProfile (no objectName overload) still compile.
+            CCS_CameraProfile profile = CCS_CameraProfile.CreateBaselineDefaultsInstance();
+            if (!string.IsNullOrEmpty(objectName))
+            {
+                profile.name = objectName;
+            }
+
             AssetDatabase.CreateAsset(profile, assetPath);
             Debug.Log("[CCS] Recreated camera profile asset at " + assetPath, profile);
         }

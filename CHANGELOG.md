@@ -4,6 +4,12 @@ All notable changes to this package are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.11-preview.1] — 2026-04-12
+
+### Fixed
+
+- **`CCS_CameraProfileAssetUtility`**: recreate path calls **`CreateBaselineDefaultsInstance()`** (no arguments) then assigns **`profile.name`**, so **Hub / partial updates** where **`Assets/CCS/CharacterController`** still has an older **`CCS_CameraProfile`** (parameterless factory only) no longer hit **CS1501**.
+
 ## [0.1.10-preview.1] — 2026-04-12
 
 ### Fixed
@@ -74,6 +80,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Phase 1 Report**: clearer lines for chosen path, reuse vs create, locomotion controller target path.
 - **README**: shortened Hub-style; note that **TestLocomotion** material `.meta` errors are from the **Hub template**, not this package.
 
+[0.1.11-preview.1]: https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/compare/v0.1.10-preview.1...v0.1.11-preview.1
 [0.1.10-preview.1]: https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/compare/v0.1.9-preview.1...v0.1.10-preview.1
 [0.1.9-preview.1]: https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/compare/v0.1.8-preview.1...v0.1.9-preview.1
 [0.1.8-preview.1]: https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/compare/v0.1.7-preview.1...v0.1.8-preview.1

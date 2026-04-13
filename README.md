@@ -1,12 +1,12 @@
 # CCS Character Controller
 
 **Package:** `com.crazycarrot.charactercontroller`  
-**Version:** `0.1.10-preview.1` (`package.json`)  
+**Version:** `0.1.11-preview.1` (`package.json`)  
 **Phase:** **Base Controller** — Humanoid-only Phase 1: wizard validates Humanoid before create, single locomotion `Animator` on `ModelOffsetRoot` with Avatar handoff + `Rebind`. Basic locomotion only. Not feature-complete. Not combat-ready.
 
 ## Hub integration (CCS Hub)
 
-Optional install in **`com.crazycarrot.hub`** is pinned to **`v0.1.10-preview.1`** (registry + `CCSDependencyManifest.json`). Hub runs **required** **Input System @1.18.0** and **Cinemachine @3.1.6** first, then adds this package, bootstraps into **`Assets/CCS/CharacterController`**, and removes the UPM entry. Console lines prefixed **`[CCS Hub]`** report install version and bootstrap steps.
+Optional install in **`com.crazycarrot.hub`** is pinned to **`v0.1.11-preview.1`** (registry + `CCSDependencyManifest.json`). Hub runs **required** **Input System @1.18.0** and **Cinemachine @3.1.6** first, then adds this package, bootstraps into **`Assets/CCS/CharacterController`**, and removes the UPM entry. Console lines prefixed **`[CCS Hub]`** report install version and bootstrap steps.
 
 ## Install (Unity Package Manager — Git URL)
 
@@ -20,7 +20,7 @@ Optional install in **`com.crazycarrot.hub`** is pinned to **`v0.1.10-preview.1`
 Optional pin:
 
 ```json
-"com.crazycarrot.charactercontroller": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller.git#v0.1.10-preview.1"
+"com.crazycarrot.charactercontroller": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller.git#v0.1.11-preview.1"
 ```
 
 ## Dependencies
