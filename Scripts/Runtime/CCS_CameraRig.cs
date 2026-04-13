@@ -9,118 +9,112 @@ using UnityEditor;
 //==============================================================================
 // CCS Script Summary
 // Name: CCS_CameraRig
-// Purpose: Cinemachine 3 follow/look targets, flattened camera basis helpers.
-//          Orbit input on vcam CinemachineInputAxisController; tuning from optional CCS_CameraProfile.
+// Purpose: Cinemachine 3 third-person rig; tuning is serialized on this component (no ScriptableObject profile).
 // Required components: CinemachineCamera + CinemachineOrbitalFollow + CinemachineRotationComposer
 //          + CinemachineInputAxisController on child "Cinemachine Third Person Follow Cam".
 // Placement: CCSCameraRig root (never parented under the player).
 // Author: James Schilz
-// Date: 2026-04-10
+// Date: 2026-04-12
 //==============================================================================
 
 namespace CCS.CharacterController
 {
     public sealed class CCS_CameraRig : MonoBehaviour
     {
+        private const float MouseOrbitVerticalGainRatio = 0.875f;
+
         #region Variables
 
         [Header("References")]
-        [Tooltip("Transform the Cinemachine body tracks (player CameraFollowTarget).")]
         [SerializeField]
-        // Player follow target; written onto CinemachineCamera.Target.TrackingTarget at runtime.
         private Transform cameraFollowTarget;
 
-        [Tooltip("Transform the Cinemachine aim uses (player CameraLookTarget).")]
         [SerializeField]
-        // Player look target; written onto CinemachineCamera Target and used by Rotation Composer.
         private Transform cameraLookTarget;
 
-        [Tooltip("Unity camera with CinemachineBrain (typically a child Main Camera).")]
         [SerializeField]
-        // Gameplay view camera; flattened forward/right drive character-relative movement feel.
         private Camera mainCamera;
 
-        [Tooltip("Dedicated third-person CinemachineCamera (wizard: child Cinemachine Third Person Follow Cam).")]
         [SerializeField]
-        // Virtual camera that owns Orbital Follow, Rotation Composer, and Input Axis Controller.
         private CinemachineCamera cinemachineCamera;
 
         [Header("Character Link")]
-        [Tooltip("CCS character on the player (reference for validation; facing is locomotion-driven only).")]
         [SerializeField]
-        // Used to confirm the rig is associated with a player; does not drive orbit input.
         private CCS_CharacterController playerCharacterController;
 
-        [Header("Camera Profile")]
-        [Tooltip("Tuning applied to the vcam and main camera. Leave empty only if you set values manually.")]
+        [Header("Lens")]
         [SerializeField]
-        // When assigned and Apply Profile On Awake is true, pushes lens, orbit, damping, and mouse speed from the asset.
-        private CCS_CameraProfile cameraProfile;
+        private float fieldOfView = 58f;
 
-        [Tooltip("When true, Awake applies cameraProfile to Cinemachine (if profile is assigned).")]
         [SerializeField]
-        // Disable to drive the vcam entirely from the inspector without profile reapplication.
-        private bool applyProfileOnAwake = true;
+        private float nearClipPlane = 0.1f;
+
+        [SerializeField]
+        private float farClipPlane = 5000f;
+
+        [SerializeField]
+        private int cinemachinePriority = 20;
+
+        [Header("Orbit")]
+        [SerializeField]
+        private float orbitRadius = 4f;
+
+        [SerializeField]
+        private Vector3 orbitTargetOffset = new Vector3(0.18f, 0f, 0f);
+
+        [SerializeField]
+        private float verticalAxisMin = -20f;
+
+        [SerializeField]
+        private float verticalAxisCenter = 12f;
+
+        [SerializeField]
+        private float verticalAxisMax = 80f;
+
+        [SerializeField]
+        private bool verticalAxisWrap;
+
+        [SerializeField]
+        private bool horizontalAxisWrap = true;
+
+        [Header("Damping")]
+        [SerializeField]
+        private Vector3 positionDamping = new Vector3(0.22f, 0.22f, 0.22f);
+
+        [SerializeField]
+        private Vector3 rotationDamping = new Vector3(0.28f, 0.28f, 0.28f);
+
+        [SerializeField]
+        private Vector2 composerDamping = new Vector2(0.32f, 0.28f);
+
+        [Header("Framing")]
+        [SerializeField]
+        private Vector3 composerTargetOffset;
 
         [Header("Orbit Input")]
-        [Tooltip("Mouse look orbit speed on the third-person vcam (overwritten from profile when Apply Profile runs).")]
         [SerializeField]
         [Min(0.01f)]
-        // Horizontal gain; vertical uses the same scale with MouseOrbitVerticalGainRatio (inverted).
         private float mouseOrbitSpeed = 0.26f;
-
-        // Vertical orbit gain magnitude relative to horizontal (matches prior wizard asymmetry).
-        private const float MouseOrbitVerticalGainRatio = 0.875f;
-
-        // One-time hint when the rig runs with no profile and apply-on-awake enabled.
-        private static bool s_warnedMissingCameraProfile;
 
         #endregion
 
         #region Unity Callbacks
 
-#if UNITY_EDITOR
-        // Assigns the package default profile when the component is first added (devs can swap the reference later).
-        private void Reset()
-        {
-            if (cameraProfile != null)
-            {
-                return;
-            }
-
-            cameraProfile = AssetDatabase.LoadAssetAtPath<CCS_CameraProfile>(
-                CCS_CharacterControllerPackagePaths.ResolvedDefaultThirdPersonFollowCameraProfilePath);
-        }
-#endif
-
-        // Pushes targets, optional profile, orbit gains, then validates references.
         private void Awake()
         {
             ApplyCinemachineTargets();
-
-            if (applyProfileOnAwake && cameraProfile != null)
-            {
-                ApplyProfile();
-            }
-            else
-            {
-                WarnMissingCameraProfileOnce();
-                ApplyOrbitMouseGains();
-            }
-
+            ApplySerializedCameraTuning();
+            ApplyOrbitMouseGains();
             ValidateReferences();
         }
 
 #if UNITY_EDITOR
-        // Keeps orbit gains in sync when mouseOrbitSpeed changes; reapplies profile when the asset reference changes in edit mode.
         private void OnValidate()
         {
-            if (cameraProfile != null && !Application.isPlaying)
+            if (!Application.isPlaying)
             {
-                ApplyProfile();
-            }
-            else
-            {
+                ApplyCinemachineTargets();
+                ApplySerializedCameraTuning();
                 ApplyOrbitMouseGains();
             }
         }
@@ -130,48 +124,47 @@ namespace CCS.CharacterController
 
         #region Public Methods
 
-        // Pushes cameraProfile onto Cinemachine and main camera, then refreshes orbit input gains.
-        public void ApplyProfile()
+        /// <summary>Pushes serialized tuning to the vcam, composer, and main camera.</summary>
+        public void ApplySerializedCameraTuning()
         {
-            if (cameraProfile == null || cinemachineCamera == null)
+            if (cinemachineCamera == null)
             {
                 return;
             }
 
             LensSettings lens = cinemachineCamera.Lens;
-            lens.FieldOfView = cameraProfile.fieldOfView;
-            lens.NearClipPlane = cameraProfile.nearClipPlane;
-            lens.FarClipPlane = cameraProfile.farClipPlane;
+            lens.FieldOfView = fieldOfView;
+            lens.NearClipPlane = nearClipPlane;
+            lens.FarClipPlane = farClipPlane;
             cinemachineCamera.Lens = lens;
-            cinemachineCamera.Priority = cameraProfile.priority;
+            cinemachineCamera.Priority = cinemachinePriority;
 
             CinemachineOrbitalFollow orbitalFollow = cinemachineCamera.GetComponent<CinemachineOrbitalFollow>();
             if (orbitalFollow != null)
             {
                 orbitalFollow.OrbitStyle = CinemachineOrbitalFollow.OrbitStyles.Sphere;
-                orbitalFollow.Radius = cameraProfile.orbitRadius;
+                orbitalFollow.Radius = orbitRadius;
                 orbitalFollow.RecenteringTarget = CinemachineOrbitalFollow.ReferenceFrames.TrackingTarget;
-                orbitalFollow.TargetOffset = cameraProfile.targetOffset;
+                orbitalFollow.TargetOffset = orbitTargetOffset;
 
                 TrackerSettings tracker = orbitalFollow.TrackerSettings;
                 tracker.BindingMode = BindingMode.LockToTargetWithWorldUp;
-                tracker.PositionDamping = cameraProfile.positionDamping;
-                tracker.RotationDamping = cameraProfile.rotationDamping;
+                tracker.PositionDamping = positionDamping;
+                tracker.RotationDamping = rotationDamping;
                 orbitalFollow.TrackerSettings = tracker;
 
                 InputAxis vertical = orbitalFollow.VerticalAxis;
-                vertical.Range = new Vector2(cameraProfile.verticalAxisMin, cameraProfile.verticalAxisMax);
-                vertical.Wrap = cameraProfile.verticalWrap;
+                vertical.Range = new Vector2(verticalAxisMin, verticalAxisMax);
+                vertical.Wrap = verticalAxisWrap;
                 vertical.Center = Mathf.Clamp(
-                    cameraProfile.verticalAxisCenter,
+                    verticalAxisCenter,
                     vertical.Range.x + 0.01f,
                     vertical.Range.y - 0.01f);
-                // Startup: use profile center as the live pitch, not a clamped leftover axis value (avoids wrong tilt at Play).
                 vertical.Value = vertical.Center;
                 orbitalFollow.VerticalAxis = vertical;
 
                 InputAxis horizontal = orbitalFollow.HorizontalAxis;
-                horizontal.Wrap = cameraProfile.horizontalWrap;
+                horizontal.Wrap = horizontalAxisWrap;
                 orbitalFollow.HorizontalAxis = horizontal;
             }
 
@@ -179,24 +172,20 @@ namespace CCS.CharacterController
             if (rotationComposer != null)
             {
                 rotationComposer.CenterOnActivate = true;
-                rotationComposer.TargetOffset = cameraProfile.composerTargetOffset;
-                rotationComposer.Damping = cameraProfile.composerDamping;
+                rotationComposer.TargetOffset = composerTargetOffset;
+                rotationComposer.Damping = composerDamping;
             }
-
-            mouseOrbitSpeed = cameraProfile.mouseOrbitSpeed;
-            ApplyOrbitMouseGains();
 
             if (mainCamera != null)
             {
-                mainCamera.fieldOfView = cameraProfile.fieldOfView;
-                mainCamera.nearClipPlane = cameraProfile.nearClipPlane;
-                mainCamera.farClipPlane = cameraProfile.farClipPlane;
+                mainCamera.fieldOfView = fieldOfView;
+                mainCamera.nearClipPlane = nearClipPlane;
+                mainCamera.farClipPlane = farClipPlane;
             }
 
 #if UNITY_EDITOR
             if (!Application.isPlaying)
             {
-                EditorUtility.SetDirty(this);
                 EditorUtility.SetDirty(cinemachineCamera);
                 if (orbitalFollow != null)
                 {
@@ -216,13 +205,11 @@ namespace CCS.CharacterController
 #endif
         }
 
-        // Re-applies Look Orbit X/Y gain from mouseOrbitSpeed (used when no profile or after manual speed edits).
         public void RefreshOrbitMouseGains()
         {
             ApplyOrbitMouseGains();
         }
 
-        // World forward from main camera with Y removed; used for camera-relative locomotion.
         public Vector3 GetFlattenedCameraForward()
         {
             if (mainCamera == null)
@@ -240,7 +227,6 @@ namespace CCS.CharacterController
             return forward.normalized;
         }
 
-        // World right from main camera with Y removed; strafe basis for locomotion helpers.
         public Vector3 GetFlattenedCameraRight()
         {
             if (mainCamera == null)
@@ -262,24 +248,6 @@ namespace CCS.CharacterController
 
         #region Private Methods
 
-        // Logs once if apply-on-awake is enabled but no profile is assigned (scenes can still use manual inspector values).
-        private void WarnMissingCameraProfileOnce()
-        {
-            if (!applyProfileOnAwake || cameraProfile != null || s_warnedMissingCameraProfile)
-            {
-                return;
-            }
-
-            s_warnedMissingCameraProfile = true;
-            Debug.LogWarning(
-                "[CCS_CameraRig] No camera profile assigned. Assign a CCS_CameraProfile "
-                + "(default: CCS_Default_TP_Follow_CameraProfile in "
-                + CCS_CharacterControllerPackagePaths.PackageId
-                + ") or disable Apply Profile On Awake and tune manually.",
-                this);
-        }
-
-        // Writes mouseOrbitSpeed onto CinemachineInputAxisController Look Orbit X/Y gains.
         private void ApplyOrbitMouseGains()
         {
             if (cinemachineCamera == null)
@@ -325,7 +293,6 @@ namespace CCS.CharacterController
 #endif
         }
 
-        // Assigns follow and look transforms to the CinemachineCamera Target block.
         private void ApplyCinemachineTargets()
         {
             if (cinemachineCamera == null)
@@ -340,7 +307,6 @@ namespace CCS.CharacterController
             cinemachineCamera.Target = target;
         }
 
-        // Logs missing or invalid rig references (no orbit axes; vertical limits live on Orbital Follow).
         private void ValidateReferences()
         {
             if (cameraFollowTarget == null)
@@ -382,7 +348,7 @@ namespace CCS.CharacterController
                 if (cinemachineCamera.GetComponent<CinemachineInputAxisController>() == null)
                 {
                     Debug.LogError(
-                        "[CCS_CameraRig] CinemachineInputAxisController is missing on the vcam; add it to drive orbit from the CCS Look action.",
+                        "[CCS_CameraRig] CinemachineInputAxisController is missing on the vcam.",
                         this);
                 }
             }

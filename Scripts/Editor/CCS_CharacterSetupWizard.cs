@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -11,10 +12,10 @@ using CCS.CharacterController;
 //==============================================================================
 // CCS Script Summary
 // Name: CCS_CharacterSetupWizard
-// Purpose: Editor entry point to build CCSPlayer + CCSCameraRig, wire runtime scripts,
-//          Cinemachine 3 third-person rig, default camera profile + base locomotion animator, and
-//          default input, camera profile, and base locomotion animator. Before creating, removes prior CCS players, rigs, and MainCamera-tagged
-//          cameras in loaded scenes so duplicates are not left behind.
+// Purpose: Model-agnostic third-person setup: build CCSPlayer + optional CCSCameraRig, wire Cinemachine 3,
+//          CharacterController locomotion (no Mecanim driver), camera tuning on CCS_CameraRig (serialized fields).
+//          Optional visual prefab under ModelOffsetRoot; all Animators under that subtree are disabled for a static mesh.
+//          Before creating, removes prior CCS players, rigs, and MainCamera-tagged cameras in loaded scenes.
 // Placement: Editor / menu CCS/Character Controller/Create Character.
 // Author: James Schilz
 // Date: 2026-04-10
@@ -24,104 +25,69 @@ namespace CCS.CharacterController.Editor
 {
     public sealed class CCS_CharacterSetupWizard : CCSEditorWindowBase
     {
-        // Exact hierarchy name for the third-person Cinemachine vcam child under CCSCameraRig.
         private const string ThirdPersonCinemachineChildName = "Cinemachine Third Person Follow Cam";
-        // Exact hierarchy name for the Unity render camera child under CCSCameraRig.
         private const string RigMainCameraChildName = "Main Camera";
 
-        // Default orbit radius for CinemachineOrbitalFollow (meters from follow target).
         private const float ThirdPersonOrbitRadius = 4f;
-        // Default vertical field of view pushed to the vcam lens and gameplay feel.
         private const float ThirdPersonFieldOfView = 58f;
-        // Near clip for vcam lens and new Main Camera when spawned by the wizard.
         private const float ThirdPersonNearClip = 0.1f;
-        // Far clip for vcam lens and new Main Camera when spawned by the wizard.
         private const float ThirdPersonFarClip = 5000f;
-        // Small local X offset on the orbit target for slight over-shoulder framing.
         private const float ThirdPersonOrbitTargetOffsetX = 0.18f;
-        // Starting pitch (degrees) inside vertical orbit range for a neutral third-person angle.
         private const float ThirdPersonVerticalPitchCenterDegrees = 12f;
-        // Minimum pitch (degrees); matches Cinemachine Orbital Follow vertical axis range.
         private const float ThirdPersonVerticalPitchMinDegrees = -20f;
-        // Maximum pitch (degrees); matches Cinemachine Orbital Follow vertical axis range.
         private const float ThirdPersonVerticalPitchMaxDegrees = 80f;
-        // Orbital follow position damping per axis (responsive but stable tracking).
         private const float ThirdPersonPositionDamping = 0.22f;
-        // Orbital follow rotation damping per axis (yaw/pitch tracking smoothing).
         private const float ThirdPersonRotationDamping = 0.28f;
-        // Rotation composer horizontal screen-space damping.
         private const float ThirdPersonComposerDampingX = 0.32f;
-        // Rotation composer vertical screen-space damping.
         private const float ThirdPersonComposerDampingY = 0.28f;
-        // Priority so this vcam wins over other default Cinemachine cameras in the scene.
         private const int ThirdPersonCinemachinePriority = 20;
-        // Input axis driver smoothing seconds (higher = slower ramp to orbit speed after mouse move).
         private const float ThirdPersonLookOrbitInputAccelTime = 0.38f;
         private const float ThirdPersonLookOrbitInputDecelTime = 0.38f;
 
-        // Optional visual model or prefab instantiated under CharacterVisuals.
         private GameObject sourceModelPrefab;
-        // Input asset field; null means load or create at the package default path.
         private InputActionAsset inputActionsAsset;
-        // Default: CCS_Default_TP_Follow_CameraProfile.asset (see CCS_CharacterControllerPackagePaths). Null uses package path at create.
-        [SerializeField]
-        private CCS_CameraProfile cameraProfile;
-        // Default: CCS_Base_locomotion_controller.controller (see CCS_CharacterControllerPackagePaths). Null uses package path at create.
-        [SerializeField]
-        private RuntimeAnimatorController locomotionController;
-        // When true, writes a new .inputactions file if the package asset is missing.
         private bool autoCreatePackageInputAsset = true;
-        // When true, builds CCSCameraRig after cleanup; when false, only the player is created.
         private bool createCameraRigIfMissing = true;
-        // Written onto CCS_CharacterController.moveSpeed for the new player.
         private float defaultMoveSpeed = 4.5f;
-        // Written onto CCS_CharacterController.rotationSmoothTime for the new player.
         private float defaultRotationSmoothTime = 0.12f;
-        // Written onto CCS_CharacterController.inputDeadZone for the new player.
         private float defaultInputDeadZone = 0.08f;
-        // Extra wizard and utility logging for diagnosing setup issues.
         private bool enableWizardDebugLogs;
 
-        // Shown in the window title bar and CCS banner.
+        private struct GroundAlignOutcome
+        {
+            public bool HadRenderableBounds;
+            public bool OffsetApplied;
+            public float LocalYOffsetApplied;
+            public bool SkippedNearZero;
+        }
+
         protected override string WindowTitle => "Character Controller";
 
-        // Loads default package assets when fields are empty (dev can override in the wizard window).
         protected override void OnEnable()
         {
             base.OnEnable();
+
             if (inputActionsAsset == null)
             {
                 inputActionsAsset = AssetDatabase.LoadAssetAtPath<InputActionAsset>(
                     CCS_CharacterControllerPackagePaths.ResolvedPackageInputActionsPath);
             }
-
-            if (cameraProfile == null)
-            {
-                cameraProfile = AssetDatabase.LoadAssetAtPath<CCS_CameraProfile>(
-                    CCS_CharacterControllerPackagePaths.ResolvedDefaultThirdPersonFollowCameraProfilePath);
-            }
-
-            if (locomotionController == null)
-            {
-                locomotionController = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(
-                    CCS_CharacterControllerPackagePaths.ResolvedDefaultBaseLocomotionAnimatorControllerPath);
-            }
         }
 
-        // Opens the setup wizard with a minimum window size.
         [MenuItem("CCS/Character Controller/Create Character")]
         private static void OpenWindow()
         {
             CCS_CharacterSetupWizard window = GetWindow<CCS_CharacterSetupWizard>();
-            window.minSize = new Vector2(420f, 480f);
+            window.minSize = new Vector2(420f, 420f);
         }
 
-        // Draws wizard sections (Source, Input, Default Assets, Defaults) and Create Character.
         protected override void DrawBody()
         {
             CCSEditorStyles.DrawSectionLabel("Source");
             sourceModelPrefab = (GameObject)EditorGUILayout.ObjectField(
-                new GUIContent("Model or prefab", "Instantiated under CharacterVisuals. Leave empty for hierarchy only."),
+                new GUIContent(
+                    "Model or prefab",
+                    "Optional. Instantiated under CharacterVisuals/ModelOffsetRoot. All Animator components under ModelOffsetRoot are disabled so the mesh stays static."),
                 sourceModelPrefab,
                 typeof(GameObject),
                 false);
@@ -139,22 +105,6 @@ namespace CCS.CharacterController.Editor
                     "Auto-create package input asset",
                     "When the package asset is missing, generates CCS_CharacterController_InputActions under Settings/Input."),
                 autoCreatePackageInputAsset);
-
-            CCSEditorStyles.DrawSectionLabel("Default Assets");
-            cameraProfile = (CCS_CameraProfile)EditorGUILayout.ObjectField(
-                new GUIContent(
-                    "Camera Profile",
-                    "Default: CCS_Default_TP_Follow_CameraProfile. Assigned to CCS_CameraRig after rig creation. Clear to resolve from the package path at create time."),
-                cameraProfile,
-                typeof(CCS_CameraProfile),
-                false);
-            locomotionController = (RuntimeAnimatorController)EditorGUILayout.ObjectField(
-                new GUIContent(
-                    "Locomotion Controller",
-                    "Default: CCS_Base_locomotion_controller. Assigned to the character Animator. Clear to resolve from the package path at create time."),
-                locomotionController,
-                typeof(RuntimeAnimatorController),
-                false);
 
             CCSEditorStyles.DrawSectionLabel("Defaults");
             defaultMoveSpeed = EditorGUILayout.FloatField(new GUIContent("Move speed"), defaultMoveSpeed);
@@ -177,7 +127,6 @@ namespace CCS.CharacterController.Editor
             }
         }
 
-        // Full setup: undo group, clear old CCS objects, create player, optional rig, frame scene.
         private void RunCreateCharacter()
         {
             int undoGroup = Undo.GetCurrentGroup();
@@ -191,8 +140,6 @@ namespace CCS.CharacterController.Editor
                     LogCharacterSetupFailed();
                     return;
                 }
-
-                WarnIfDefaultPackageAssetsMissing();
 
                 InputActionReference moveReference = ResolveMoveActionReference(workingAsset);
                 InputActionReference lookReference = ResolveLookActionReference(workingAsset);
@@ -246,7 +193,9 @@ namespace CCS.CharacterController.Editor
 
                 if (!createCameraRigIfMissing || cameraRigRoot != null)
                 {
-                    Debug.Log("[CCS_CharacterSetupWizard] Character setup completed successfully.", playerRoot);
+                    Debug.Log(
+                        "[CCS_CharacterSetupWizard] Character setup finished. CharacterController locomotion + serialized camera tuning on CCS_CameraRig (no packaged Mecanim).",
+                        playerRoot);
                 }
             }
             finally
@@ -262,7 +211,6 @@ namespace CCS.CharacterController.Editor
                 this);
         }
 
-        // Returns the wizard asset or ensures the package asset exists and validates it.
         private InputActionAsset ResolveWorkingInputAsset()
         {
             if (inputActionsAsset != null)
@@ -283,57 +231,6 @@ namespace CCS.CharacterController.Editor
             return ensured;
         }
 
-        // Warns when optional wizard slots are empty and the package default file is missing (creation still proceeds).
-        private void WarnIfDefaultPackageAssetsMissing()
-        {
-            if (cameraProfile == null
-                && AssetDatabase.LoadAssetAtPath<CCS_CameraProfile>(
-                    CCS_CharacterControllerPackagePaths.ResolvedDefaultThirdPersonFollowCameraProfilePath) == null)
-            {
-                Debug.LogWarning(
-                    "[CCS_CharacterSetupWizard] Camera profile is not assigned and the package default was not found at "
-                    + CCS_CharacterControllerPackagePaths.ResolvedDefaultThirdPersonFollowCameraProfilePath
-                    + ". Assign a profile in the wizard or restore the asset.",
-                    this);
-            }
-
-            if (locomotionController == null
-                && AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(
-                    CCS_CharacterControllerPackagePaths.ResolvedDefaultBaseLocomotionAnimatorControllerPath) == null)
-            {
-                Debug.LogWarning(
-                    "[CCS_CharacterSetupWizard] Locomotion animator is not assigned and the package default was not found at "
-                    + CCS_CharacterControllerPackagePaths.ResolvedDefaultBaseLocomotionAnimatorControllerPath
-                    + ". Assign a controller in the wizard or restore the asset.",
-                    this);
-            }
-        }
-
-        // Effective profile: wizard slot or package default on disk.
-        private CCS_CameraProfile ResolveEffectiveCameraProfile()
-        {
-            if (cameraProfile != null)
-            {
-                return cameraProfile;
-            }
-
-            return AssetDatabase.LoadAssetAtPath<CCS_CameraProfile>(
-                CCS_CharacterControllerPackagePaths.ResolvedDefaultThirdPersonFollowCameraProfilePath);
-        }
-
-        // Effective locomotion controller: wizard slot or package default on disk.
-        private RuntimeAnimatorController ResolveEffectiveLocomotionController()
-        {
-            if (locomotionController != null)
-            {
-                return locomotionController;
-            }
-
-            return AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(
-                CCS_CharacterControllerPackagePaths.ResolvedDefaultBaseLocomotionAnimatorControllerPath);
-        }
-
-        // Resolves Gameplay/Move from the CCS input asset.
         private InputActionReference ResolveMoveActionReference(InputActionAsset asset)
         {
             if (asset == null)
@@ -354,7 +251,6 @@ namespace CCS.CharacterController.Editor
             return InputActionReference.Create(moveAction);
         }
 
-        // Resolves Gameplay/Look from the CCS input asset (Cinemachine Input Axis Controller).
         private InputActionReference ResolveLookActionReference(InputActionAsset asset)
         {
             if (asset == null)
@@ -375,10 +271,8 @@ namespace CCS.CharacterController.Editor
             return InputActionReference.Create(lookAction);
         }
 
-        // Destroys all CCS rigs, CCS players, and MainCamera-tagged cameras in loaded scenes (undoable).
         private void RemoveExistingCcsCharacterSetupFromOpenScenes()
         {
-            // One set of roots avoids destroying the same hierarchy twice when tags overlap.
             HashSet<GameObject> roots = new HashSet<GameObject>();
 
             CCS_CameraRig[] rigs = UnityEngine.Object.FindObjectsByType<CCS_CameraRig>(
@@ -431,7 +325,6 @@ namespace CCS.CharacterController.Editor
             }
         }
 
-        // Builds CCSPlayer root, motor, character script, camera targets, optional model, and bindings.
         private GameObject CreatePlayerHierarchy(InputActionReference moveReference)
         {
             GameObject playerRoot = new GameObject(GetUniqueRootName("CCSPlayer"));
@@ -450,6 +343,12 @@ namespace CCS.CharacterController.Editor
             Undo.RegisterCreatedObjectUndo(visuals, "Create CharacterVisuals");
             visuals.transform.SetParent(playerRoot.transform, false);
 
+            GameObject modelOffsetRootGo = new GameObject("ModelOffsetRoot");
+            Undo.RegisterCreatedObjectUndo(modelOffsetRootGo, "Create ModelOffsetRoot");
+            modelOffsetRootGo.transform.SetParent(visuals.transform, false);
+            modelOffsetRootGo.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+            modelOffsetRootGo.transform.localScale = Vector3.one;
+
             GameObject cameraTargets = new GameObject("CameraTargets");
             Undo.RegisterCreatedObjectUndo(cameraTargets, "Create CameraTargets");
             cameraTargets.transform.SetParent(playerRoot.transform, false);
@@ -464,14 +363,36 @@ namespace CCS.CharacterController.Editor
             look.transform.SetParent(cameraTargets.transform, false);
             look.transform.localPosition = new Vector3(0f, 1.6f, 0.1f);
 
-            Transform visualRootTransform = visuals.transform;
+            Transform characterVisualRootForFacing = modelOffsetRootGo.transform;
+            GroundAlignOutcome groundOutcome = default;
+            bool modelPrefabSlotUsed = sourceModelPrefab != null;
+            bool modelInstanceCreated = false;
+
             if (sourceModelPrefab != null)
             {
-                GameObject modelInstance = InstantiateSourceModel(sourceModelPrefab, visuals.transform);
-                if (modelInstance != null)
+                GameObject modelInstance = InstantiateSourceModel(sourceModelPrefab, modelOffsetRootGo.transform);
+                if (modelInstance == null)
                 {
-                    visualRootTransform = modelInstance.transform;
+                    Undo.DestroyObjectImmediate(playerRoot);
+                    Debug.LogError(
+                        "[CCS_CharacterSetupWizard] Model instantiation failed; setup rolled back.",
+                        this);
+                    return null;
                 }
+
+                modelInstanceCreated = true;
+                groundOutcome = AlignModelOffsetForVisualGrounding(
+                    modelOffsetRootGo.transform,
+                    modelInstance.transform,
+                    playerRoot);
+                FitCharacterMotorToVisualBounds(
+                    motor,
+                    playerRoot.transform,
+                    visuals.transform,
+                    enableWizardDebugLogs,
+                    playerRoot);
+                AdjustCameraTargetsForMotorHeight(follow.transform, look.transform, motor);
+                DisableAllAnimatorsUnderModelOffset(modelOffsetRootGo.transform, playerRoot.transform);
             }
 
             ApplyCharacterBindings(
@@ -479,69 +400,89 @@ namespace CCS.CharacterController.Editor
                 motor,
                 follow.transform,
                 look.transform,
-                visualRootTransform,
+                characterVisualRootForFacing,
                 moveReference,
                 defaultMoveSpeed,
                 defaultRotationSmoothTime,
                 defaultInputDeadZone,
                 enableWizardDebugLogs);
 
-            Animator locomotionAnimator = ApplyLocomotionAnimatorController(visualRootTransform, playerRoot);
-            ApplyAnimatorDriver(playerRoot, character, locomotionAnimator);
+            LogSimpleSetupReport(playerRoot, groundOutcome, modelPrefabSlotUsed, modelInstanceCreated);
 
             EditorUtility.SetDirty(playerRoot);
             return playerRoot;
         }
 
-        // Ensures an Animator on the visual root (or model root) with the wizard locomotion controller and no root motion.
-        private Animator ApplyLocomotionAnimatorController(Transform visualRoot, GameObject playerRoot)
+        private static void DisableAllAnimatorsUnderModelOffset(Transform modelOffsetRoot, Transform playerRoot)
         {
-            if (visualRoot == null)
-            {
-                return null;
-            }
-
-            GameObject host = visualRoot.gameObject;
-            Animator animator = host.GetComponent<Animator>();
-            if (animator == null)
-            {
-                animator = Undo.AddComponent<Animator>(host);
-            }
-
-            RuntimeAnimatorController controller = ResolveEffectiveLocomotionController();
-            if (controller == null)
-            {
-                Debug.LogWarning(
-                    "[CCS_CharacterSetupWizard] No locomotion animator controller resolved; assign one in the wizard or restore "
-                    + CCS_CharacterControllerPackagePaths.ResolvedDefaultBaseLocomotionAnimatorControllerPath,
-                    playerRoot);
-                return null;
-            }
-
-            Undo.RecordObject(animator, "Assign CCS locomotion animator");
-            animator.runtimeAnimatorController = controller;
-            animator.applyRootMotion = false;
-            EditorUtility.SetDirty(animator);
-            return animator;
-        }
-
-        // Adds CCS_AnimatorDriver on the player root and wires character + locomotion Animator references.
-        private static void ApplyAnimatorDriver(GameObject playerRoot, CCS_CharacterController character, Animator locomotionAnimator)
-        {
-            if (character == null || locomotionAnimator == null)
+            if (modelOffsetRoot == null)
             {
                 return;
             }
 
-            CCS_AnimatorDriver driver = Undo.AddComponent<CCS_AnimatorDriver>(playerRoot);
-            SerializedObject serializedDriver = new SerializedObject(driver);
-            serializedDriver.FindProperty("characterController").objectReferenceValue = character;
-            serializedDriver.FindProperty("locomotionAnimator").objectReferenceValue = locomotionAnimator;
-            serializedDriver.ApplyModifiedProperties();
-            EditorUtility.SetDirty(driver);
+            Animator[] animators = modelOffsetRoot.GetComponentsInChildren<Animator>(true);
+            int disabled = 0;
+            for (int i = 0; i < animators.Length; i++)
+            {
+                Animator animator = animators[i];
+                if (animator == null)
+                {
+                    continue;
+                }
+
+                Undo.RecordObject(animator, "CCS: disable Animators under ModelOffsetRoot");
+                animator.enabled = false;
+                animator.runtimeAnimatorController = null;
+                animator.applyRootMotion = false;
+                EditorUtility.SetDirty(animator);
+                disabled++;
+            }
+
+            if (disabled > 0)
+            {
+                Debug.Log(
+                    "[CCS_CharacterSetupWizard] Disabled "
+                    + disabled
+                    + " Animator(s) under ModelOffsetRoot so the imported mesh stays static (CharacterController-only locomotion).",
+                    modelOffsetRoot);
+            }
         }
 
-        // Instantiates a prefab asset or scene object under CharacterVisuals with undo support.
+        private void LogSimpleSetupReport(
+            GameObject playerRoot,
+            GroundAlignOutcome groundOutcome,
+            bool modelPrefabSlotUsed,
+            bool modelInstanceCreated)
+        {
+            if (playerRoot == null)
+            {
+                return;
+            }
+
+            string groundLine = !groundOutcome.HadRenderableBounds
+                ? "skipped (no renderers)"
+                : groundOutcome.OffsetApplied
+                    ? "applied (local Y " + groundOutcome.LocalYOffsetApplied.ToString("F3") + ")"
+                    : groundOutcome.SkippedNearZero
+                        ? "skipped (already aligned)"
+                        : "skipped";
+
+            StringBuilder sb = new StringBuilder(256);
+            sb.AppendLine("[CCS] Setup report:");
+            sb.AppendLine("* Locomotion: Unity CharacterController + CCS_CharacterController (no CCS_AnimatorDriver).");
+            sb.AppendLine("* Camera: CCS_CameraRig serialized tuning (no camera profile asset).");
+            sb.AppendLine("* Model slot used: " + modelPrefabSlotUsed + ", instance created: " + modelInstanceCreated);
+            sb.AppendLine("* Visual ground alignment: " + groundLine);
+            Debug.Log(sb.ToString(), playerRoot);
+
+            if (modelPrefabSlotUsed && !modelInstanceCreated)
+            {
+                Debug.LogError(
+                    "[CCS_CharacterSetupWizard] Model prefab was set but no instance exists; this should not occur after a successful create.",
+                    playerRoot);
+            }
+        }
+
         private GameObject InstantiateSourceModel(GameObject source, Transform parent)
         {
             GameObject instance;
@@ -569,7 +510,6 @@ namespace CCS.CharacterController.Editor
             return instance;
         }
 
-        // Reuses a scene MainCamera when present; otherwise creates Main Camera child under the rig.
         private Camera ResolveOrCreateMainCameraUnderRig(Transform rigRoot)
         {
             if (TryGetSceneMainCamera(out Camera existing))
@@ -605,7 +545,6 @@ namespace CCS.CharacterController.Editor
             return camera;
         }
 
-        // Finds Camera.main or any MainCamera-tagged object with a Camera component.
         private static bool TryGetSceneMainCamera(out Camera camera)
         {
             camera = Camera.main;
@@ -629,7 +568,6 @@ namespace CCS.CharacterController.Editor
             return false;
         }
 
-        // Adds CinemachineBrain to the render camera when missing so the vcam can drive the view.
         private static void EnsureCinemachineBrain(Camera camera)
         {
             if (camera == null)
@@ -649,7 +587,6 @@ namespace CCS.CharacterController.Editor
                 camera.gameObject);
         }
 
-        // Assigns MainCamera tag when needed so Camera.main and CCS_CharacterController resolve correctly.
         private static void EnsureMainCameraTag(Camera camera)
         {
             if (camera == null)
@@ -678,7 +615,6 @@ namespace CCS.CharacterController.Editor
             }
         }
 
-        // Tags the new player root as Player; warns if the tag is missing from the project.
         private void EnsurePlayerTag(GameObject playerRoot)
         {
             if (playerRoot == null)
@@ -698,7 +634,6 @@ namespace CCS.CharacterController.Editor
             }
         }
 
-        // Creates CCSCameraRig, Main Camera, third-person vcam, configures Cinemachine, binds CCS_CameraRig.
         private GameObject CreateCameraRigHierarchy(GameObject playerRoot, InputActionReference lookReference)
         {
             CCS_CharacterController character = playerRoot.GetComponent<CCS_CharacterController>();
@@ -744,31 +679,16 @@ namespace CCS.CharacterController.Editor
                 cinemachineCamera,
                 character);
 
-            CCS_CameraProfile profileToAssign = ResolveEffectiveCameraProfile();
-            if (profileToAssign == null)
-            {
-                Debug.LogWarning(
-                    "[CCS_CharacterSetupWizard] No camera profile resolved; assign one in the wizard or restore "
-                    + CCS_CharacterControllerPackagePaths.ResolvedDefaultThirdPersonFollowCameraProfilePath,
-                    rigRoot);
-            }
-            else
-            {
-                SerializedObject rigProfileObject = new SerializedObject(cameraRig);
-                rigProfileObject.FindProperty("cameraProfile").objectReferenceValue = profileToAssign;
-                rigProfileObject.ApplyModifiedProperties();
-            }
-
-            Undo.RecordObject(cameraRig, "Apply CCS camera profile");
-            Undo.RecordObject(cinemachineCamera, "Apply CCS camera profile");
-            Undo.RecordObject(orbitalFollow, "Apply CCS camera profile");
-            Undo.RecordObject(rotationComposer, "Apply CCS camera profile");
+            Undo.RecordObject(cameraRig, "Apply CCS camera serialized tuning");
+            Undo.RecordObject(cinemachineCamera, "Apply CCS camera serialized tuning");
+            Undo.RecordObject(orbitalFollow, "Apply CCS camera serialized tuning");
+            Undo.RecordObject(rotationComposer, "Apply CCS camera serialized tuning");
             if (renderCamera != null)
             {
-                Undo.RecordObject(renderCamera, "Apply CCS camera profile");
+                Undo.RecordObject(renderCamera, "Apply CCS camera serialized tuning");
             }
 
-            cameraRig.ApplyProfile();
+            cameraRig.ApplySerializedCameraTuning();
 
             ValidateAndLogCcsThirdPersonRig(
                 rigRoot,
@@ -787,6 +707,7 @@ namespace CCS.CharacterController.Editor
             {
                 EditorUtility.SetDirty(inputAxisController);
             }
+
             if (renderCamera != null)
             {
                 EditorUtility.SetDirty(renderCamera.gameObject);
@@ -795,7 +716,6 @@ namespace CCS.CharacterController.Editor
             return rigRoot;
         }
 
-        // Applies CCS third-person defaults: targets, priority, lens, orbit, damping, composer.
         private static void ConfigureThirdPersonCinemachineCamera(
             CinemachineCamera cinemachineCamera,
             CinemachineOrbitalFollow orbitalFollow,
@@ -853,7 +773,6 @@ namespace CCS.CharacterController.Editor
             rotationComposer.Damping = new Vector2(ThirdPersonComposerDampingX, ThirdPersonComposerDampingY);
         }
 
-        // Adds CinemachineInputAxisController and binds Gameplay/Look to Orbital Follow X/Y (single input owner).
         private static void ConfigureCinemachineInputAxisController(
             GameObject thirdPersonVcamObject,
             InputActionReference lookActionReference)
@@ -919,7 +838,6 @@ namespace CCS.CharacterController.Editor
             EditorUtility.SetDirty(axisController);
         }
 
-        // Verifies hierarchy, components, serialized refs, vcam targets, and Cinemachine Look wiring; logs results.
         private void ValidateAndLogCcsThirdPersonRig(
             GameObject rigRoot,
             Transform expectedFollow,
@@ -930,7 +848,6 @@ namespace CCS.CharacterController.Editor
             int errors = 0;
             int warnings = 0;
 
-            // Root object and CCS_CameraRig presence.
             if (rigRoot == null)
             {
                 Debug.LogError("[CCS_CharacterSetupWizard] Rig validation failed: rig root is null.", this);
@@ -946,7 +863,6 @@ namespace CCS.CharacterController.Editor
                     rigRoot);
             }
 
-            // Named third-person child and required Cinemachine 3 pipeline components.
             Transform cmChild = rigRoot.transform.Find(ThirdPersonCinemachineChildName);
             CinemachineCamera vcam = null;
             CinemachineOrbitalFollow orbital = null;
@@ -1039,7 +955,6 @@ namespace CCS.CharacterController.Editor
                 }
             }
 
-            // Main Camera under rig preferred; otherwise accept a scene MainCamera with a warning.
             Transform mainChild = rigRoot.transform.Find(RigMainCameraChildName);
             Camera mainCam = null;
             if (mainChild != null)
@@ -1085,7 +1000,6 @@ namespace CCS.CharacterController.Editor
                 }
             }
 
-            // Serialized CCS_CameraRig references and optional equality against expected objects.
             if (rig != null)
             {
                 SerializedObject so = new SerializedObject(rig);
@@ -1159,7 +1073,6 @@ namespace CCS.CharacterController.Editor
                         rig);
                 }
 
-                // CinemachineCamera Target must match the rig's follow and look transforms.
                 if (vcam != null)
                 {
                     CameraTarget ct = vcam.Target;
@@ -1198,7 +1111,6 @@ namespace CCS.CharacterController.Editor
             }
         }
 
-        // Writes motor, camera targets, visual root, move action, and tuning fields on the character.
         private static void ApplyCharacterBindings(
             CCS_CharacterController character,
             UnityEngine.CharacterController motor,
@@ -1224,7 +1136,6 @@ namespace CCS.CharacterController.Editor
             serializedObject.ApplyModifiedProperties();
         }
 
-        // Writes follow/look targets, main camera, vcam, and player on CCS_CameraRig (orbit input is on CinemachineInputAxisController).
         private static void ApplyCameraRigBindings(
             CCS_CameraRig cameraRig,
             Transform followTarget,
@@ -1242,7 +1153,6 @@ namespace CCS.CharacterController.Editor
             serializedObject.ApplyModifiedProperties();
         }
 
-        // Appends numeric suffixes so new roots do not collide with existing scene object names.
         private static string GetUniqueRootName(string baseName)
         {
             int suffix = 0;
@@ -1254,6 +1164,223 @@ namespace CCS.CharacterController.Editor
             }
 
             return candidate;
+        }
+
+        private static GroundAlignOutcome AlignModelOffsetForVisualGrounding(
+            Transform modelOffsetRoot,
+            Transform meshSearchRoot,
+            GameObject playerRoot)
+        {
+            GroundAlignOutcome outcome = default;
+            if (modelOffsetRoot == null || meshSearchRoot == null)
+            {
+                return outcome;
+            }
+
+            if (!TryGetLowestRendererPointLocalY(modelOffsetRoot, meshSearchRoot, out float lowestLocalY))
+            {
+                Debug.LogWarning(
+                    "[CCS_CharacterSetupWizard] No Renderer under imported model; skipped visual ground alignment.",
+                    meshSearchRoot);
+                return outcome;
+            }
+
+            outcome.HadRenderableBounds = true;
+
+            if (Mathf.Abs(lowestLocalY) < 0.0005f)
+            {
+                outcome.SkippedNearZero = true;
+                Debug.Log(
+                    "[CCS_CharacterSetupWizard] Visual ground alignment: mesh bottom already at ModelOffsetRoot origin (local).",
+                    playerRoot);
+                return outcome;
+            }
+
+            Undo.RecordObject(modelOffsetRoot, "Align character visual to ground (ModelOffsetRoot local Y)");
+            Vector3 local = modelOffsetRoot.localPosition;
+            float newY = local.y - lowestLocalY;
+            modelOffsetRoot.localPosition = new Vector3(local.x, newY, local.z);
+            outcome.OffsetApplied = true;
+            outcome.LocalYOffsetApplied = newY;
+            Debug.Log(
+                "[CCS_CharacterSetupWizard] Visual ground alignment: ModelOffsetRoot.localPosition.y set to "
+                + newY.ToString("F3")
+                + " (mesh lowest local Y was "
+                + lowestLocalY.ToString("F3")
+                + ").",
+                modelOffsetRoot);
+            return outcome;
+        }
+
+        private static bool TryGetLowestRendererPointLocalY(
+            Transform modelOffsetRoot,
+            Transform meshSearchRoot,
+            out float lowestLocalY)
+        {
+            lowestLocalY = 0f;
+            Renderer[] renderers = meshSearchRoot.GetComponentsInChildren<Renderer>(true);
+            if (renderers == null || renderers.Length == 0)
+            {
+                return false;
+            }
+
+            Matrix4x4 worldToLocal = modelOffsetRoot.worldToLocalMatrix;
+            float minY = float.MaxValue;
+            Vector3[] corners = new Vector3[8];
+
+            for (int r = 0; r < renderers.Length; r++)
+            {
+                Bounds bounds = renderers[r].bounds;
+                Vector3 min = bounds.min;
+                Vector3 max = bounds.max;
+                corners[0] = new Vector3(min.x, min.y, min.z);
+                corners[1] = new Vector3(min.x, min.y, max.z);
+                corners[2] = new Vector3(min.x, max.y, min.z);
+                corners[3] = new Vector3(min.x, max.y, max.z);
+                corners[4] = new Vector3(max.x, min.y, min.z);
+                corners[5] = new Vector3(max.x, min.y, max.z);
+                corners[6] = new Vector3(max.x, max.y, min.z);
+                corners[7] = new Vector3(max.x, max.y, max.z);
+
+                for (int c = 0; c < 8; c++)
+                {
+                    float y = worldToLocal.MultiplyPoint3x4(corners[c]).y;
+                    if (y < minY)
+                    {
+                        minY = y;
+                    }
+                }
+            }
+
+            lowestLocalY = minY;
+            return true;
+        }
+
+        private static void FitCharacterMotorToVisualBounds(
+            UnityEngine.CharacterController motor,
+            Transform playerRoot,
+            Transform characterVisualsRoot,
+            bool logDebug,
+            Object context)
+        {
+            if (motor == null || playerRoot == null || characterVisualsRoot == null)
+            {
+                return;
+            }
+
+            Renderer[] renderers = characterVisualsRoot.GetComponentsInChildren<Renderer>(true);
+            if (renderers == null || renderers.Length == 0)
+            {
+                return;
+            }
+
+            Matrix4x4 worldToPlayer = playerRoot.worldToLocalMatrix;
+            float minY = float.MaxValue;
+            float maxY = float.MinValue;
+            float minX = float.MaxValue;
+            float maxX = float.MinValue;
+            float minZ = float.MaxValue;
+            float maxZ = float.MinValue;
+            Vector3[] corners = new Vector3[8];
+
+            for (int r = 0; r < renderers.Length; r++)
+            {
+                Bounds bounds = renderers[r].bounds;
+                Vector3 min = bounds.min;
+                Vector3 max = bounds.max;
+                corners[0] = new Vector3(min.x, min.y, min.z);
+                corners[1] = new Vector3(min.x, min.y, max.z);
+                corners[2] = new Vector3(min.x, max.y, min.z);
+                corners[3] = new Vector3(min.x, max.y, max.z);
+                corners[4] = new Vector3(max.x, min.y, min.z);
+                corners[5] = new Vector3(max.x, min.y, max.z);
+                corners[6] = new Vector3(max.x, max.y, min.z);
+                corners[7] = new Vector3(max.x, max.y, max.z);
+
+                for (int c = 0; c < 8; c++)
+                {
+                    Vector3 lp = worldToPlayer.MultiplyPoint3x4(corners[c]);
+                    if (lp.y < minY)
+                    {
+                        minY = lp.y;
+                    }
+
+                    if (lp.y > maxY)
+                    {
+                        maxY = lp.y;
+                    }
+
+                    if (lp.x < minX)
+                    {
+                        minX = lp.x;
+                    }
+
+                    if (lp.x > maxX)
+                    {
+                        maxX = lp.x;
+                    }
+
+                    if (lp.z < minZ)
+                    {
+                        minZ = lp.z;
+                    }
+
+                    if (lp.z > maxZ)
+                    {
+                        maxZ = lp.z;
+                    }
+                }
+            }
+
+            float spanY = maxY - minY;
+            if (spanY < 0.35f)
+            {
+                return;
+            }
+
+            const float verticalPadding = 0.16f;
+            float height = Mathf.Clamp(spanY + verticalPadding, 1.15f, 3.45f);
+            float centerY = minY + height * 0.5f;
+
+            float extentX = (maxX - minX) * 0.5f;
+            float extentZ = (maxZ - minZ) * 0.5f;
+            float radius = Mathf.Clamp(Mathf.Max(extentX, extentZ) * 0.48f, 0.22f, 0.55f);
+
+            Undo.RecordObject(motor, "Fit CharacterController to character visuals");
+            motor.height = height;
+            motor.center = new Vector3(0f, centerY, 0f);
+            motor.radius = radius;
+            motor.skinWidth = Mathf.Clamp(radius * 0.12f, 0.05f, 0.1f);
+
+            if (logDebug)
+            {
+                Debug.Log(
+                    "[CCS_CharacterSetupWizard] CharacterController fit to render bounds: height="
+                    + height.ToString("F2")
+                    + ", center.y="
+                    + centerY.ToString("F2")
+                    + ", radius="
+                    + radius.ToString("F2")
+                    + ".",
+                    context);
+            }
+        }
+
+        private static void AdjustCameraTargetsForMotorHeight(
+            Transform follow,
+            Transform look,
+            UnityEngine.CharacterController motor)
+        {
+            if (follow == null || look == null || motor == null)
+            {
+                return;
+            }
+
+            float bottomY = motor.center.y - motor.height * 0.5f;
+            float eyeY = Mathf.Clamp(bottomY + motor.height * 0.82f, 1.05f, 2.35f);
+            follow.localPosition = new Vector3(0f, eyeY, 0f);
+            Vector3 lookLocal = look.localPosition;
+            look.localPosition = new Vector3(lookLocal.x, eyeY, lookLocal.z);
         }
     }
 }
