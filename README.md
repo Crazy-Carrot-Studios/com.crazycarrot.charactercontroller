@@ -1,12 +1,12 @@
 # CCS Character Controller
 
 **Package:** `com.crazycarrot.charactercontroller`  
-**Version:** `0.2.1` (`package.json`)  
-**Baseline:** **Unity `CharacterController`** + **`CCS_CharacterController`** — camera-relative **walk** and **sprint** (hold Sprint while moving), gravity, smooth yaw on a visual root. **Cinemachine 3** orbit via **`CCS_CameraRig`** (serialized fields only; no camera profiles). Optional model under **`ModelOffsetRoot`**; wizard **disables `Animator`s** there so the mesh stays **static**. Not feature-complete; not combat-ready.
+**Version:** `0.2.2` (`package.json`)  
+**Baseline:** **Unity `CharacterController`** + **`CCS_CharacterController`** — camera-relative **walk** and **sprint** (hold Sprint while moving), gravity, smooth yaw on a visual root. **Cinemachine 3** orbit via **`CCS_CameraRig`** (serialized fields only; no camera profiles). Wizard assigns **`CCS_Idle_Controller`** (baseline idle state; optional clip) to **Animator(s)** under **`ModelOffsetRoot`** so Mecanim stays **active** for testing. Not feature-complete; not combat-ready.
 
 ## Hub integration (CCS Hub)
 
-If you use **`com.crazycarrot.hub`**, pin this package to a tag that matches your manifest (for example **`v0.2.1`** after release). Hub typically bootstraps into **`Assets/CCS/CharacterController`** and removes the UPM entry; ensure your Hub copy of this package matches the version you expect.
+If you use **`com.crazycarrot.hub`**, pin this package to a tag that matches your manifest (for example **`v0.2.2`** after release). Hub typically bootstraps into **`Assets/CCS/CharacterController`** and removes the UPM entry; ensure your Hub copy of this package matches the version you expect.
 
 ## Install (Unity Package Manager — Git URL)
 
@@ -20,7 +20,7 @@ If you use **`com.crazycarrot.hub`**, pin this package to a tag that matches you
 Optional pin:
 
 ```json
-"com.crazycarrot.charactercontroller": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller.git#v0.2.1"
+"com.crazycarrot.charactercontroller": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller.git#v0.2.2"
 ```
 
 ## Dependencies
@@ -30,7 +30,7 @@ Optional pin:
 
 ## Wizard
 
-**CCS → Character Controller → Create Character** — builds **CCSPlayer** and optional **CCSCameraRig**, wires **Gameplay/Move**, **Look**, and **Sprint**, and applies default Cinemachine wiring. Tune speeds and camera on the components in the Inspector.
+**CCS → Character Controller → Create Character** — builds **CCSPlayer** and optional **CCSCameraRig**, wires **Gameplay/Move**, **Look**, and **Sprint**, assigns **`Animations/Controllers/CCS_Idle_Controller`** to rig **Animator(s)**, and applies default Cinemachine wiring. Tune speeds and camera in the Inspector.
 
 ## Test / scenes
 

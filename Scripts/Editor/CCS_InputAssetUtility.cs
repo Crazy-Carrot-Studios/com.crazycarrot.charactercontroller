@@ -1,5 +1,4 @@
 using System.IO;
-using CCS.CharacterController;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -7,8 +6,8 @@ using UnityEngine.InputSystem;
 //==============================================================================
 // CCS Script Summary
 // Name: CCS_InputAssetUtility
-// Purpose: Ensures the package CCS_CharacterController_InputActions asset exists,
-//          validates maps/actions, and can generate a default asset on disk.
+// Purpose: Resolves package root (UPM or Assets/CCS/CharacterController); paths for input actions and
+//          CCS_Idle_Controller; ensures input asset exists, validates maps/actions, can generate default on disk.
 // Placement: Editor only.
 // Author: James Schilz
 // Date: 2026-04-10
@@ -18,10 +17,77 @@ namespace CCS.CharacterController.Editor
 {
     internal static class CCS_InputAssetUtility
     {
+        private const string UpmPackageRoot = "Packages/com.crazycarrot.charactercontroller";
+        private const string EmbeddedPackageRoot = "Assets/CCS/CharacterController";
+        private const string RelativeInputActions = "Settings/Input/CCS_CharacterController_InputActions.inputactions";
+
+        private const string RelativeIdleAnimatorController =
+            "Animations/Controllers/CCS_Idle_Controller.controller";
+
+        internal static string GetResolvedPackageRoot()
+        {
+            if (AssetDatabase.IsValidFolder(UpmPackageRoot))
+            {
+                return UpmPackageRoot;
+            }
+
+            if (AssetDatabase.IsValidFolder(EmbeddedPackageRoot))
+            {
+                return EmbeddedPackageRoot;
+            }
+
+            return UpmPackageRoot;
+        }
+
+        internal static string ResolvedPackageInputActionsPath =>
+            $"{GetResolvedPackageRoot()}/{RelativeInputActions}";
+
+        internal static string ResolvedIdleAnimatorControllerPath =>
+            $"{GetResolvedPackageRoot()}/{RelativeIdleAnimatorController}";
+
+        // Expected path first; if missing (e.g. wrong folder after copy), finds CCS_Idle_Controller under this package.
+        internal static RuntimeAnimatorController TryLoadIdleAnimatorController(out string usedAssetPath)
+        {
+            usedAssetPath = ResolvedIdleAnimatorControllerPath;
+            RuntimeAnimatorController controller =
+                AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(usedAssetPath);
+            if (controller != null)
+            {
+                return controller;
+            }
+
+            string[] guids = AssetDatabase.FindAssets("CCS_Idle_Controller t:AnimatorController");
+            for (int i = 0; i < guids.Length; i++)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guids[i]);
+                if (string.IsNullOrEmpty(path))
+                {
+                    continue;
+                }
+
+                string normalized = path.Replace('\\', '/');
+                if (!normalized.Contains("CCS/CharacterController")
+                    && !normalized.Contains("com.crazycarrot.charactercontroller"))
+                {
+                    continue;
+                }
+
+                controller = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(path);
+                if (controller != null)
+                {
+                    usedAssetPath = path;
+                    return controller;
+                }
+            }
+
+            usedAssetPath = null;
+            return null;
+        }
+
         // Loads the package input asset or creates it on disk when allowed; validates required actions.
         internal static bool EnsurePackageInputAssetExists(bool createIfMissing, bool enableDebugLogs, out InputActionAsset asset)
         {
-            string inputPath = CCS_CharacterControllerPackagePaths.ResolvedPackageInputActionsPath;
+            string inputPath = ResolvedPackageInputActionsPath;
             asset = AssetDatabase.LoadAssetAtPath<InputActionAsset>(inputPath);
             if (asset != null)
             {

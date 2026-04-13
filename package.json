@@ -1,8 +1,8 @@
 {
   "name": "com.crazycarrot.charactercontroller",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "displayName": "CCS Character Controller (Baseline)",
-  "description": "0.2.1 — Baseline: CharacterController walk/sprint + gravity, Cinemachine 3 rig (serialized tuning only). Gameplay Move/Look/Sprint. No camera profiles or Mecanim in package.",
+  "description": "0.2.2 — Basic Locomotion Idle only: CharacterController walk/sprint + gravity, Cinemachine 3 rig (serialized tuning). Gameplay Move/Look/Sprint. Wizard assigns CCS_Idle_Controller for baseline Mecanim.",
   "unity": "6000.0",
   "documentationUrl": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller",
   "changelogUrl": "https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/blob/main/CHANGELOG.md",
@@ -18,7 +18,8 @@
     "locomotion",
     "third-person",
     "cinemachine",
-    "baseline"
+    "baseline",
+    "idle"
   ],
   "author": {
     "name": "Crazy Carrot Studios",

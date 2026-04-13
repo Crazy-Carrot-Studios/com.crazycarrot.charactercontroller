@@ -13,7 +13,8 @@ using CCS.CharacterController;
 // CCS Script Summary
 // Name: CCS_CharacterSetupWizard
 // Purpose: Baseline setup: CCSPlayer (CharacterController + walk/sprint) and optional CCSCameraRig (Cinemachine 3).
-//          Wires Gameplay Move, Look, Sprint. Optional model under ModelOffsetRoot; Animators there are disabled.
+//          Wires Gameplay Move, Look, Sprint. Assigns package CCS_Idle_Controller on Animator(s) under ModelOffsetRoot
+//          (active, no clips) for Mecanim testing; adds Animator on ModelOffsetRoot if none when no model.
 //          Before creating, removes prior CCS players, rigs, and MainCamera-tagged cameras in loaded scenes.
 // Placement: Editor / menu CCS/Character Controller/Create Character.
 // Author: James Schilz
@@ -71,7 +72,7 @@ namespace CCS.CharacterController.Editor
             if (inputActionsAsset == null)
             {
                 inputActionsAsset = AssetDatabase.LoadAssetAtPath<InputActionAsset>(
-                    CCS_CharacterControllerPackagePaths.ResolvedPackageInputActionsPath);
+                    CCS_InputAssetUtility.ResolvedPackageInputActionsPath);
             }
         }
 
@@ -88,7 +89,7 @@ namespace CCS.CharacterController.Editor
             sourceModelPrefab = (GameObject)EditorGUILayout.ObjectField(
                 new GUIContent(
                     "Model or prefab",
-                    "Optional. Instantiated under CharacterVisuals/ModelOffsetRoot. All Animator components under ModelOffsetRoot are disabled so the mesh stays static."),
+                    "Optional. Instantiated under CharacterVisuals/ModelOffsetRoot. All Animators there get CCS_Idle_Controller (active; default idle clip in package controller)."),
                 sourceModelPrefab,
                 typeof(GameObject),
                 false);
@@ -416,8 +417,12 @@ namespace CCS.CharacterController.Editor
                     enableWizardDebugLogs,
                     playerRoot);
                 AdjustCameraTargetsForMotorHeight(follow.transform, look.transform, motor);
-                DisableAllAnimatorsUnderModelOffset(modelOffsetRootGo.transform, playerRoot.transform);
             }
+
+            SetupAnimatorsWithIdleController(
+                modelOffsetRootGo.transform,
+                playerRoot,
+                enableWizardDebugLogs);
 
             ApplyCharacterBindings(
                 character,
@@ -440,15 +445,43 @@ namespace CCS.CharacterController.Editor
             return playerRoot;
         }
 
-        private static void DisableAllAnimatorsUnderModelOffset(Transform modelOffsetRoot, Transform playerRoot)
+        private void SetupAnimatorsWithIdleController(
+            Transform modelOffsetRoot,
+            GameObject playerRoot,
+            bool logAssignmentDetails)
         {
             if (modelOffsetRoot == null)
             {
                 return;
             }
 
+            RuntimeAnimatorController idleController =
+                CCS_InputAssetUtility.TryLoadIdleAnimatorController(out string controllerPathUsed);
+            if (idleController == null)
+            {
+                Debug.LogError(
+                    "[CCS_CharacterSetupWizard] CCS_Idle_Controller not found. Expected at '"
+                    + CCS_InputAssetUtility.ResolvedIdleAnimatorControllerPath
+                    + "' (or search by name under Assets/CCS/CharacterController or the UPM package).",
+                    this);
+                return;
+            }
+
+            if (logAssignmentDetails)
+            {
+                Debug.Log(
+                    "[CCS_CharacterSetupWizard] Using CCS_Idle_Controller from '" + controllerPathUsed + "'.",
+                    modelOffsetRoot);
+            }
+
             Animator[] animators = modelOffsetRoot.GetComponentsInChildren<Animator>(true);
-            int disabled = 0;
+            if (animators.Length == 0)
+            {
+                Animator added = Undo.AddComponent<Animator>(modelOffsetRoot.gameObject);
+                animators = new Animator[] { added };
+            }
+
+            int assigned = 0;
             for (int i = 0; i < animators.Length; i++)
             {
                 Animator animator = animators[i];
@@ -457,20 +490,20 @@ namespace CCS.CharacterController.Editor
                     continue;
                 }
 
-                Undo.RecordObject(animator, "CCS: disable Animators under ModelOffsetRoot");
-                animator.enabled = false;
-                animator.runtimeAnimatorController = null;
+                Undo.RecordObject(animator, "CCS: assign CCS_Idle_Controller");
+                animator.runtimeAnimatorController = idleController;
+                animator.enabled = true;
                 animator.applyRootMotion = false;
                 EditorUtility.SetDirty(animator);
-                disabled++;
+                assigned++;
             }
 
-            if (disabled > 0)
+            if (logAssignmentDetails)
             {
                 Debug.Log(
-                    "[CCS_CharacterSetupWizard] Disabled "
-                    + disabled
-                    + " Animator(s) under ModelOffsetRoot so the imported mesh stays static (CharacterController-only locomotion).",
+                    "[CCS_CharacterSetupWizard] Assigned CCS_Idle_Controller to "
+                    + assigned
+                    + " Animator(s) under ModelOffsetRoot (active, no clips).",
                     modelOffsetRoot);
             }
         }
@@ -497,6 +530,7 @@ namespace CCS.CharacterController.Editor
             StringBuilder sb = new StringBuilder(256);
             sb.AppendLine("[CCS] Setup report:");
             sb.AppendLine("* Movement: CharacterController + walk/sprint (Gameplay/Move + Sprint).");
+            sb.AppendLine("* Animator: CCS_Idle_Controller on ModelOffsetRoot (or model hierarchy), enabled.");
             sb.AppendLine("* Camera: CCS_CameraRig — serialized orbit/lens/damping only.");
             sb.AppendLine("* Model slot used: " + modelPrefabSlotUsed + ", instance created: " + modelInstanceCreated);
             sb.AppendLine("* Visual ground alignment: " + groundLine);

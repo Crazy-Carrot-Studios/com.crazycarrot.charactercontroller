@@ -4,16 +4,25 @@ All notable changes to this package are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.2] — 2026-04-10
+
+### Basic Locomotion Idle only
+
+- **`CCS_Idle_Controller`**: Renamed from **`CCS_Empty_Controller`**; included under **`Animations/Controllers/`**. Wizard assigns it via **`TryLoadIdleAnimatorController`** / **`ResolvedIdleAnimatorControllerPath`**.
+- **Editor**: **`CCS_InputAssetUtility`** and **`CCS_CharacterSetupWizard`** updated for the idle controller name and load path.
+
 ## [0.2.1] — 2026-04-10
 
 ### Added
 
 - **Sprint** in baseline: **`CCS_CharacterController`** uses **`Gameplay/Sprint`** with **walk** / **sprint** speeds and serialized **gravity**.
+- **`Animations/Controllers/CCS_Idle_Controller`**: Animator Controller with a default **idle** state (package sample may use no clip or a bundled idle clip). Wizard assigns it to every **Animator** under **ModelOffsetRoot** (enabled) and adds an **Animator** on **ModelOffsetRoot** when the hierarchy has none.
 
 ### Changed
 
 - **`CCS_CameraRig`**: Inspector groups and tooltips; **`ApplySerializedRigSettings`** (replaces **`ApplySerializedCameraTuning`**). Missing **player** reference is a warning, not an error.
 - **Input validation**: **Move**, **Look**, **Sprint** required; other Gameplay actions optional.
+- Removed **`CCS_CharacterControllerPackagePaths`**. Package root and input asset path live on **`CCS_InputAssetUtility`** (`GetResolvedPackageRoot`, **`ResolvedPackageInputActionsPath`**).
 
 ## [0.2.0] — 2026-04-10
 
