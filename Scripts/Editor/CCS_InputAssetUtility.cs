@@ -6,8 +6,8 @@ using UnityEngine.InputSystem;
 //==============================================================================
 // CCS Script Summary
 // Name: CCS_InputAssetUtility
-// Purpose: Resolves package root (UPM or Assets/CCS/CharacterController); paths for input actions and
-//          CCS_Idle_Controller; ensures input asset exists, validates maps/actions, can generate default on disk.
+// Purpose: Resolves package root (UPM or Assets/CCS/CharacterController); paths for input actions,
+//          CCS_Idle_Controller, AC_CCS_Locomotion_Base; ensures input asset exists, validates maps/actions.
 // Placement: Editor only.
 // Author: James Schilz
 // Date: 2026-04-10
@@ -23,6 +23,9 @@ namespace CCS.CharacterController.Editor
 
         private const string RelativeIdleAnimatorController =
             "Animations/Controllers/CCS_Idle_Controller.controller";
+
+        private const string RelativeLocomotionBaseAnimatorController =
+            "Animations/Controllers/AC_CCS_Locomotion_Base.controller";
 
         internal static string GetResolvedPackageRoot()
         {
@@ -45,6 +48,12 @@ namespace CCS.CharacterController.Editor
         internal static string ResolvedIdleAnimatorControllerPath =>
             $"{GetResolvedPackageRoot()}/{RelativeIdleAnimatorController}";
 
+        internal static string ResolvedLocomotionBaseAnimatorControllerPath =>
+            $"{GetResolvedPackageRoot()}/{RelativeLocomotionBaseAnimatorController}";
+
+        internal static string ResolvedBasicLocomotionMinimalAnimatorControllerPath =>
+            $"{GetResolvedPackageRoot()}/{CCS_BasicLocomotionMinimalControllerAuthoring.RelativeControllerPath}";
+
         // Expected path first; if missing (e.g. wrong folder after copy), finds CCS_Idle_Controller under this package.
         internal static RuntimeAnimatorController TryLoadIdleAnimatorController(out string usedAssetPath)
         {
@@ -57,6 +66,87 @@ namespace CCS.CharacterController.Editor
             }
 
             string[] guids = AssetDatabase.FindAssets("CCS_Idle_Controller t:AnimatorController");
+            for (int i = 0; i < guids.Length; i++)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guids[i]);
+                if (string.IsNullOrEmpty(path))
+                {
+                    continue;
+                }
+
+                string normalized = path.Replace('\\', '/');
+                if (!normalized.Contains("CCS/CharacterController")
+                    && !normalized.Contains("com.crazycarrot.charactercontroller"))
+                {
+                    continue;
+                }
+
+                controller = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(path);
+                if (controller != null)
+                {
+                    usedAssetPath = path;
+                    return controller;
+                }
+            }
+
+            usedAssetPath = null;
+            return null;
+        }
+
+        // Expected path first; if missing, finds AC_CCS_Locomotion_Base under this package.
+        internal static RuntimeAnimatorController TryLoadLocomotionBaseAnimatorController(out string usedAssetPath)
+        {
+            usedAssetPath = ResolvedLocomotionBaseAnimatorControllerPath;
+            RuntimeAnimatorController controller =
+                AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(usedAssetPath);
+            if (controller != null)
+            {
+                return controller;
+            }
+
+            string[] guids = AssetDatabase.FindAssets("AC_CCS_Locomotion_Base t:AnimatorController");
+            for (int i = 0; i < guids.Length; i++)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guids[i]);
+                if (string.IsNullOrEmpty(path))
+                {
+                    continue;
+                }
+
+                string normalized = path.Replace('\\', '/');
+                if (!normalized.Contains("CCS/CharacterController")
+                    && !normalized.Contains("com.crazycarrot.charactercontroller"))
+                {
+                    continue;
+                }
+
+                controller = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(path);
+                if (controller != null)
+                {
+                    usedAssetPath = path;
+                    return controller;
+                }
+            }
+
+            usedAssetPath = null;
+            return null;
+        }
+
+        /// <summary>
+        /// Loads <c>AC_CCS_BasicLocomotion_Minimal.controller</c> from the expected package path, with FindAssets fallback.
+        /// Does not build the asset; call <see cref="CCS_BasicLocomotionMinimalControllerAuthoring.EnsureMinimalControllerExists"/> first when authoring.
+        /// </summary>
+        internal static RuntimeAnimatorController TryLoadBasicLocomotionMinimalAnimatorController(out string usedAssetPath)
+        {
+            usedAssetPath = ResolvedBasicLocomotionMinimalAnimatorControllerPath;
+            RuntimeAnimatorController controller =
+                AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(usedAssetPath);
+            if (controller != null)
+            {
+                return controller;
+            }
+
+            string[] guids = AssetDatabase.FindAssets("AC_CCS_BasicLocomotion_Minimal t:AnimatorController");
             for (int i = 0; i < guids.Length; i++)
             {
                 string path = AssetDatabase.GUIDToAssetPath(guids[i]);

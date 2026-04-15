@@ -4,6 +4,19 @@ All notable changes to this package are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.0] — 2026-04-15
+
+### Added
+
+- **Phase 1 locomotion**: **`AC_CCS_BasicLocomotion_Minimal`** (1D blend on **InputMagnitude**), editor authoring menu to build/regenerate the controller, **`driveMinimalLocomotionParameterSet`** on **`CCS_CharacterController`**.
+- **Create flow**: **`CCS_CreateBasicControllerWindow`**, **`CCS_BasicControllerCreator`**, **`PF_CCS_BasicController_Template`**, **`CCS_BasicControllerTemplateAuthoring`**, validation (**`CCS_BaseLocomotionCreateValidation`**), **`CCS_AnimatorSetupUtility`** minimal assign path.
+- **Content**: **Starter character** prefab, **demo scene** (**`SCN_CCS_Controller_Demo`**), expanded **Animations** (clips, masks, models, reference controllers).
+
+### Changed
+
+- **`CCS_CharacterController`**: optional **locomotion Animator** driving; camera-relative movement unchanged.
+- **`CCS_InputAssetUtility`**: load path for minimal locomotion controller.
+
 ## [0.2.2] — 2026-04-10
 
 ### Basic Locomotion Idle only

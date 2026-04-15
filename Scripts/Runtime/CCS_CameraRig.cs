@@ -148,7 +148,9 @@ namespace CCS.CharacterController
 
         #region Public Methods
 
-        // Pushes all serialized fields to the vcam, orbital follow, composer, input gains, and main camera.
+        /// <summary>
+        /// Pushes all serialized fields to the vcam, orbital follow, composer, input gains, and main camera.
+        /// </summary>
         public void ApplySerializedRigSettings()
         {
             if (cinemachineCamera == null)
@@ -231,7 +233,9 @@ namespace CCS.CharacterController
             ApplyOrbitInputGains();
         }
 
-        // Re-applies mouse/gamepad gains on the Cinemachine Input Axis Controller (safe to call after inspector edits).
+        /// <summary>
+        /// Re-applies mouse/gamepad gains on the Cinemachine Input Axis Controller.
+        /// </summary>
         public void RefreshOrbitInputGains()
         {
             ApplyOrbitInputGains();

@@ -6,7 +6,7 @@ using UnityEngine.InputSystem;
 // Name: CCS_CharacterController
 // Purpose: Baseline third-person movement using Unity CharacterController: camera-relative
 //          XZ motion, walk/sprint speed, gravity, smooth yaw toward move direction on a visual root.
-//          No Animator, profiles, or jump/crouch in this baseline.
+//          Optionally drives AC_CCS_BasicLocomotion_Minimal (InputMagnitude, IsGrounded, IsSprinting) or full Invector-style parameters.
 // Required components: UnityEngine.CharacterController on this GameObject.
 // Placement: CCSPlayer root (tag Player).
 // Author: James Schilz
@@ -68,10 +68,38 @@ namespace CCS.CharacterController
         [Tooltip("Input Actions: Gameplay/Sprint (Button). Held + move input uses sprint speed.")]
         private InputActionReference sprintAction;
 
+        [Header("Animation")]
+        [SerializeField]
+        [Tooltip("Humanoid Animator on the visual (usually under VisualRoot). If empty, resolves from Character Visual Root at runtime.")]
+        private Animator locomotionAnimator;
+
+        [SerializeField]
+        [Tooltip("When enabled, writes locomotion parameters expected by AC_CCS_Locomotion_Base (InputHorizontal, InputVertical, InputMagnitude, IsGrounded, IsSprinting, …).")]
+        private bool driveLocomotionAnimator = true;
+
+        [SerializeField]
+        [Tooltip(
+            "When enabled (Phase 1 default with AC_CCS_BasicLocomotion_Minimal), only InputMagnitude, IsGrounded, and IsSprinting are written. "
+            + "When disabled, full Invector-style parameters are written for large controllers.")]
+        private bool driveMinimalLocomotionParameterSet;
+
         [Header("Debug")]
         [SerializeField]
         [Tooltip("When enabled, logs movement diagnostics (can be noisy).")]
         private bool enableDebugLogs;
+
+        private static readonly int AnimatorInputHorizontal = Animator.StringToHash("InputHorizontal");
+        private static readonly int AnimatorInputVertical = Animator.StringToHash("InputVertical");
+        private static readonly int AnimatorInputDirection = Animator.StringToHash("InputDirection");
+        private static readonly int AnimatorInputMagnitude = Animator.StringToHash("InputMagnitude");
+        private static readonly int AnimatorRotationMagnitude = Animator.StringToHash("RotationMagnitude");
+        private static readonly int AnimatorIsGrounded = Animator.StringToHash("IsGrounded");
+        private static readonly int AnimatorIsSprinting = Animator.StringToHash("IsSprinting");
+        private static readonly int AnimatorIsStrafing = Animator.StringToHash("IsStrafing");
+        private static readonly int AnimatorVerticalVelocity = Animator.StringToHash("VerticalVelocity");
+        private static readonly int AnimatorGroundDistance = Animator.StringToHash("GroundDistance");
+        private static readonly int AnimatorGroundAngle = Animator.StringToHash("GroundAngle");
+        private static readonly int AnimatorMoveSetId = Animator.StringToHash("MoveSet_ID");
 
         // Cached gameplay camera for camera-relative axes.
         private Camera cachedMainCamera;
@@ -90,6 +118,7 @@ namespace CCS.CharacterController
         {
             CacheMainCamera();
             ValidateReferences();
+            ResolveLocomotionAnimator();
         }
 
         private void Start()
@@ -135,20 +164,74 @@ namespace CCS.CharacterController
             }
         }
 
+        private void Update()
+        {
+            if (!driveLocomotionAnimator)
+            {
+                return;
+            }
+
+            if (!TryBuildLocomotionFrame(out LocomotionFrame frame))
+            {
+                return;
+            }
+
+            UpdateLocomotionAnimatorParameters(frame.MoveInput, frame.PlanarDirection, frame.UseSprint);
+        }
+
         private void LateUpdate()
         {
-            if (characterMotor == null || moveAction == null || moveAction.action == null)
+            if (!TryBuildLocomotionFrame(out LocomotionFrame frame))
             {
                 hasMovementInputThisFrame = false;
                 lastMoveInput = Vector2.zero;
                 return;
             }
 
+            lastMoveInput = frame.MoveInput;
+            hasMovementInputThisFrame = frame.HasMovementInput;
+
+            ApplyGravity();
+            Vector3 planarVelocity = frame.PlanarDirection * frame.PlanarSpeed;
+            Vector3 motion = new Vector3(planarVelocity.x, verticalVelocity, planarVelocity.z) * Time.deltaTime;
+            characterMotor.Move(motion);
+
+            UpdateFacing(frame.PlanarDirection);
+
+            if (enableDebugLogs && hasMovementInputThisFrame)
+            {
+                Debug.Log(
+                    $"[CCS_CharacterController] Move: {frame.MoveInput} | Sprint: {frame.UseSprint} | Speed: {frame.PlanarSpeed}",
+                    this);
+            }
+        }
+
+        #endregion
+
+        #region Private Methods
+
+        private struct LocomotionFrame
+        {
+            public Vector2 MoveInput;
+            public Vector3 PlanarDirection;
+            public bool HasMovementInput;
+            public bool UseSprint;
+            public float PlanarSpeed;
+        }
+
+        private bool TryBuildLocomotionFrame(out LocomotionFrame frame)
+        {
+            frame = default;
+            if (characterMotor == null || moveAction == null || moveAction.action == null)
+            {
+                return false;
+            }
+
             RefreshGameplayCameraIfNeeded();
 
             Vector2 moveInput = moveAction.action.ReadValue<Vector2>();
-            lastMoveInput = moveInput;
-            hasMovementInputThisFrame = moveInput.sqrMagnitude > inputDeadZone * inputDeadZone;
+            frame.MoveInput = moveInput;
+            frame.HasMovementInput = moveInput.sqrMagnitude > inputDeadZone * inputDeadZone;
 
             Vector3 planarDirection = ComputeCameraRelativePlanarDirection(moveInput);
             if (planarDirection.sqrMagnitude > 0.0001f)
@@ -160,30 +243,15 @@ namespace CCS.CharacterController
                 planarDirection = Vector3.zero;
             }
 
+            frame.PlanarDirection = planarDirection;
+
             bool sprintHeld = sprintAction != null
                 && sprintAction.action != null
                 && sprintAction.action.IsPressed();
-            bool useSprint = sprintHeld && hasMovementInputThisFrame;
-            float planarSpeed = useSprint ? sprintSpeed : walkSpeed;
-
-            ApplyGravity();
-            Vector3 planarVelocity = planarDirection * planarSpeed;
-            Vector3 motion = new Vector3(planarVelocity.x, verticalVelocity, planarVelocity.z) * Time.deltaTime;
-            characterMotor.Move(motion);
-
-            UpdateFacing(planarDirection);
-
-            if (enableDebugLogs && hasMovementInputThisFrame)
-            {
-                Debug.Log(
-                    $"[CCS_CharacterController] Move: {moveInput} | Sprint: {useSprint} | Speed: {planarSpeed}",
-                    this);
-            }
+            frame.UseSprint = sprintHeld && frame.HasMovementInput;
+            frame.PlanarSpeed = frame.UseSprint ? sprintSpeed : walkSpeed;
+            return true;
         }
-
-        #endregion
-
-        #region Private Methods
 
         private void CacheMainCamera()
         {
@@ -240,6 +308,80 @@ namespace CCS.CharacterController
                     "[CCS_CharacterController] Character visual root is not assigned; facing will not update.",
                     this);
             }
+        }
+
+        private void ResolveLocomotionAnimator()
+        {
+            if (locomotionAnimator != null)
+            {
+                return;
+            }
+
+            if (characterVisualRoot == null)
+            {
+                return;
+            }
+
+            locomotionAnimator = characterVisualRoot.GetComponentInChildren<Animator>(true);
+        }
+
+        private void UpdateLocomotionAnimatorParameters(
+            Vector2 moveInput,
+            Vector3 planarWorldDirection,
+            bool sprinting)
+        {
+            if (locomotionAnimator == null || !locomotionAnimator.isActiveAndEnabled)
+            {
+                return;
+            }
+
+            if (driveMinimalLocomotionParameterSet)
+            {
+                bool hasMove =
+                    moveInput.sqrMagnitude > inputDeadZone * inputDeadZone;
+                float blendMagnitude = hasMove ? Mathf.Clamp01(moveInput.magnitude) : 0f;
+                if (sprinting && hasMove)
+                {
+                    blendMagnitude = Mathf.Max(blendMagnitude, 1f);
+                }
+
+                bool motorGrounded = characterMotor != null && characterMotor.isGrounded;
+                locomotionAnimator.SetFloat(AnimatorInputMagnitude, blendMagnitude);
+                locomotionAnimator.SetBool(AnimatorIsGrounded, motorGrounded);
+                locomotionAnimator.SetBool(AnimatorIsSprinting, sprinting);
+                return;
+            }
+
+            float inputMagnitude = hasMovementInputThisFrame ? Mathf.Clamp01(moveInput.magnitude) : 0f;
+            float inputHorizontal = 0f;
+            float inputVertical = 0f;
+            if (characterVisualRoot != null
+                && inputMagnitude > 0.001f
+                && planarWorldDirection.sqrMagnitude > 0.0001f)
+            {
+                Vector3 local = characterVisualRoot.InverseTransformDirection(planarWorldDirection);
+                inputHorizontal = local.x * inputMagnitude;
+                inputVertical = local.z * inputMagnitude;
+            }
+
+            float inputDirection = Mathf.Abs(inputHorizontal) < 0.001f && Mathf.Abs(inputVertical) < 0.001f
+                ? 0f
+                : Mathf.Atan2(inputHorizontal, inputVertical) * Mathf.Rad2Deg;
+
+            bool grounded = characterMotor != null && characterMotor.isGrounded;
+
+            locomotionAnimator.SetFloat(AnimatorInputHorizontal, inputHorizontal);
+            locomotionAnimator.SetFloat(AnimatorInputVertical, inputVertical);
+            locomotionAnimator.SetFloat(AnimatorInputDirection, inputDirection);
+            locomotionAnimator.SetFloat(AnimatorInputMagnitude, inputMagnitude);
+            locomotionAnimator.SetFloat(AnimatorRotationMagnitude, 0f);
+            locomotionAnimator.SetBool(AnimatorIsGrounded, grounded);
+            locomotionAnimator.SetBool(AnimatorIsSprinting, sprinting);
+            locomotionAnimator.SetBool(AnimatorIsStrafing, false);
+            locomotionAnimator.SetFloat(AnimatorVerticalVelocity, verticalVelocity);
+            locomotionAnimator.SetFloat(AnimatorGroundDistance, grounded ? 0f : 1f);
+            locomotionAnimator.SetFloat(AnimatorGroundAngle, 0f);
+            locomotionAnimator.SetFloat(AnimatorMoveSetId, 0f);
         }
 
         private Vector3 GetFlattenedCameraForward()

@@ -13,8 +13,8 @@ using CCS.CharacterController;
 // CCS Script Summary
 // Name: CCS_CharacterSetupWizard
 // Purpose: Baseline setup: CCSPlayer (CharacterController + walk/sprint) and optional CCSCameraRig (Cinemachine 3).
-//          Wires Gameplay Move, Look, Sprint. Assigns package CCS_Idle_Controller on Animator(s) under ModelOffsetRoot
-//          (active, no clips) for Mecanim testing; adds Animator on ModelOffsetRoot if none when no model.
+//          Wires Gameplay Move, Look, Sprint. Optionally assigns package CCS_Idle_Controller only when an Animator
+//          has no controller (default: preserve existing controllers so imported characters keep working).
 //          Before creating, removes prior CCS players, rigs, and MainCamera-tagged cameras in loaded scenes.
 // Placement: Editor / menu CCS/Character Controller/Create Character.
 // Author: James Schilz
@@ -54,6 +54,8 @@ namespace CCS.CharacterController.Editor
         private float defaultRotationSmoothTime = 0.12f;
         private float defaultInputDeadZone = 0.08f;
         private bool enableWizardDebugLogs;
+        // When true (default), Animators that already have a RuntimeAnimatorController are left unchanged (Invector-style).
+        private bool preserveExistingAnimatorControllers = true;
 
         private struct GroundAlignOutcome
         {
@@ -89,10 +91,16 @@ namespace CCS.CharacterController.Editor
             sourceModelPrefab = (GameObject)EditorGUILayout.ObjectField(
                 new GUIContent(
                     "Model or prefab",
-                    "Optional. Instantiated under CharacterVisuals/ModelOffsetRoot. All Animators there get CCS_Idle_Controller (active; default idle clip in package controller)."),
+                    "Optional. Instantiated under CharacterVisuals/ModelOffsetRoot. Existing animator controllers are preserved by default."),
                 sourceModelPrefab,
                 typeof(GameObject),
                 false);
+            preserveExistingAnimatorControllers = EditorGUILayout.Toggle(
+                new GUIContent(
+                    "Preserve existing animator controllers",
+                    "When enabled, any Animator that already has a RuntimeAnimatorController keeps it (recommended for characters from other projects). "
+                    + "When disabled, the package assigns CCS_Idle_Controller to every Animator under ModelOffsetRoot."),
+                preserveExistingAnimatorControllers);
 
             CCSEditorStyles.DrawSectionLabel("Input");
             inputActionsAsset = (InputActionAsset)EditorGUILayout.ObjectField(
@@ -419,10 +427,11 @@ namespace CCS.CharacterController.Editor
                 AdjustCameraTargetsForMotorHeight(follow.transform, look.transform, motor);
             }
 
-            SetupAnimatorsWithIdleController(
+            AnimatorWizardOutcome animatorOutcome = SetupAnimatorsWithIdleController(
                 modelOffsetRootGo.transform,
                 playerRoot,
-                enableWizardDebugLogs);
+                enableWizardDebugLogs,
+                preserveExistingAnimatorControllers);
 
             ApplyCharacterBindings(
                 character,
@@ -439,39 +448,28 @@ namespace CCS.CharacterController.Editor
                 defaultInputDeadZone,
                 enableWizardDebugLogs);
 
-            LogSimpleSetupReport(playerRoot, groundOutcome, modelPrefabSlotUsed, modelInstanceCreated);
+            LogSimpleSetupReport(playerRoot, groundOutcome, modelPrefabSlotUsed, modelInstanceCreated, animatorOutcome);
 
             EditorUtility.SetDirty(playerRoot);
             return playerRoot;
         }
 
-        private void SetupAnimatorsWithIdleController(
+        private struct AnimatorWizardOutcome
+        {
+            public int AssignedPackageIdleCount;
+            public int PreservedExistingControllerCount;
+        }
+
+        private AnimatorWizardOutcome SetupAnimatorsWithIdleController(
             Transform modelOffsetRoot,
             GameObject playerRoot,
-            bool logAssignmentDetails)
+            bool logAssignmentDetails,
+            bool preserveExistingControllers)
         {
+            AnimatorWizardOutcome outcome = default;
             if (modelOffsetRoot == null)
             {
-                return;
-            }
-
-            RuntimeAnimatorController idleController =
-                CCS_InputAssetUtility.TryLoadIdleAnimatorController(out string controllerPathUsed);
-            if (idleController == null)
-            {
-                Debug.LogError(
-                    "[CCS_CharacterSetupWizard] CCS_Idle_Controller not found. Expected at '"
-                    + CCS_InputAssetUtility.ResolvedIdleAnimatorControllerPath
-                    + "' (or search by name under Assets/CCS/CharacterController or the UPM package).",
-                    this);
-                return;
-            }
-
-            if (logAssignmentDetails)
-            {
-                Debug.Log(
-                    "[CCS_CharacterSetupWizard] Using CCS_Idle_Controller from '" + controllerPathUsed + "'.",
-                    modelOffsetRoot);
+                return outcome;
             }
 
             Animator[] animators = modelOffsetRoot.GetComponentsInChildren<Animator>(true);
@@ -481,11 +479,67 @@ namespace CCS.CharacterController.Editor
                 animators = new Animator[] { added };
             }
 
-            int assigned = 0;
+            bool needPackageIdle = !preserveExistingControllers;
+            if (preserveExistingControllers)
+            {
+                for (int i = 0; i < animators.Length; i++)
+                {
+                    Animator animator = animators[i];
+                    if (animator != null && animator.runtimeAnimatorController == null)
+                    {
+                        needPackageIdle = true;
+                        break;
+                    }
+                }
+            }
+
+            RuntimeAnimatorController idleController = null;
+            string controllerPathUsed = null;
+            if (needPackageIdle)
+            {
+                idleController = CCS_InputAssetUtility.TryLoadIdleAnimatorController(out controllerPathUsed);
+                if (idleController == null)
+                {
+                    Debug.LogError(
+                        "[CCS_CharacterSetupWizard] CCS_Idle_Controller not found. Expected at '"
+                        + CCS_InputAssetUtility.ResolvedIdleAnimatorControllerPath
+                        + "' (or search by name under Assets/CCS/CharacterController or the UPM package).",
+                        this);
+                    return outcome;
+                }
+
+                if (logAssignmentDetails)
+                {
+                    Debug.Log(
+                        "[CCS_CharacterSetupWizard] Using CCS_Idle_Controller from '" + controllerPathUsed + "'.",
+                        modelOffsetRoot);
+                }
+            }
+
             for (int i = 0; i < animators.Length; i++)
             {
                 Animator animator = animators[i];
                 if (animator == null)
+                {
+                    continue;
+                }
+
+                if (preserveExistingControllers && animator.runtimeAnimatorController != null)
+                {
+                    outcome.PreservedExistingControllerCount++;
+                    if (logAssignmentDetails)
+                    {
+                        Debug.Log(
+                            "[CCS_CharacterSetupWizard] Preserving existing controller on Animator '"
+                            + animator.name
+                            + "'.",
+                            animator);
+                    }
+
+                    continue;
+                }
+
+                if (idleController == null)
                 {
                     continue;
                 }
@@ -495,24 +549,29 @@ namespace CCS.CharacterController.Editor
                 animator.enabled = true;
                 animator.applyRootMotion = false;
                 EditorUtility.SetDirty(animator);
-                assigned++;
+                outcome.AssignedPackageIdleCount++;
             }
 
             if (logAssignmentDetails)
             {
                 Debug.Log(
-                    "[CCS_CharacterSetupWizard] Assigned CCS_Idle_Controller to "
-                    + assigned
-                    + " Animator(s) under ModelOffsetRoot (active, no clips).",
+                    "[CCS_CharacterSetupWizard] Animator summary: assigned CCS_Idle_Controller to "
+                    + outcome.AssignedPackageIdleCount
+                    + " Animator(s); preserved "
+                    + outcome.PreservedExistingControllerCount
+                    + " existing controller(s).",
                     modelOffsetRoot);
             }
+
+            return outcome;
         }
 
         private void LogSimpleSetupReport(
             GameObject playerRoot,
             GroundAlignOutcome groundOutcome,
             bool modelPrefabSlotUsed,
-            bool modelInstanceCreated)
+            bool modelInstanceCreated,
+            AnimatorWizardOutcome animatorOutcome)
         {
             if (playerRoot == null)
             {
@@ -530,7 +589,16 @@ namespace CCS.CharacterController.Editor
             StringBuilder sb = new StringBuilder(256);
             sb.AppendLine("[CCS] Setup report:");
             sb.AppendLine("* Movement: CharacterController + walk/sprint (Gameplay/Move + Sprint).");
-            sb.AppendLine("* Animator: CCS_Idle_Controller on ModelOffsetRoot (or model hierarchy), enabled.");
+            sb.AppendLine(
+                "* Animator: "
+                + (animatorOutcome.PreservedExistingControllerCount > 0
+                    ? "preserved "
+                      + animatorOutcome.PreservedExistingControllerCount
+                      + " existing controller(s); "
+                    : string.Empty)
+                + "assigned package CCS_Idle_Controller to "
+                + animatorOutcome.AssignedPackageIdleCount
+                + " Animator(s) (others unchanged when preserve is on).");
             sb.AppendLine("* Camera: CCS_CameraRig — serialized orbit/lens/damping only.");
             sb.AppendLine("* Model slot used: " + modelPrefabSlotUsed + ", instance created: " + modelInstanceCreated);
             sb.AppendLine("* Visual ground alignment: " + groundLine);
