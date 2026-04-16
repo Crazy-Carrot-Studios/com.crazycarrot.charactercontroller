@@ -6,7 +6,7 @@
 
 ## Hub integration (CCS Hub)
 
-If you use **`com.crazycarrot.hub`**, pin this package to a tag that matches your manifest (for example **`v0.3.0`** after you tag the release). Hub typically bootstraps into **`Assets/CCS/CharacterController`** and removes the UPM entry; ensure your Hub copy of this package matches the version you expect.
+**CCS Hub** (current **`com.crazycarrot.hub`**) installs this package from Git with **`#main`** so you get the **latest commit on `main`** when you run the optional install (then bootstraps into **`Assets/CCS/CharacterController`** and may remove the UPM entry). To **lock** a build to a specific release, add **`#v0.3.0`** (or another [tag](https://github.com/Crazy-Carrot-Studios/com.crazycarrot.charactercontroller/tags)) yourself in **`Packages/manifest.json`** instead of using the Hub URL, or pin the Hub package to a Hub tag if you need a fixed Hub + manifest pair.
 
 ## Install (Unity Package Manager — Git URL)
 
