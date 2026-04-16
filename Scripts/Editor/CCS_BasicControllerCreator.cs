@@ -26,9 +26,6 @@ namespace CCS.CharacterController.Editor
     {
         #region Constants
 
-        private const string DefaultStarterVisualPrefabPath =
-            "Assets/CCS/CharacterController/Characters/CCS_StarterCharacter/Prefabs/PF_CCS_StarterCharacter_Visual.prefab";
-
         private const string SceneGroupName = "CCS_BasicControllers";
         private const string ThirdPersonCinemachineChildName = "Cinemachine Third Person Follow Cam";
         private const string RigMainCameraChildName = "Main Camera";
@@ -1052,12 +1049,25 @@ namespace CCS.CharacterController.Editor
             return candidate;
         }
 
+        private static GameObject TryLoadDefaultStarterVisualPrefab()
+        {
+            GameObject fromPackage =
+                AssetDatabase.LoadAssetAtPath<GameObject>(CCS_InputAssetUtility.ResolvedStarterVisualPrefabPath);
+            if (fromPackage != null)
+            {
+                return fromPackage;
+            }
+
+            return AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/CCS/CharacterController/Characters/CCS_StarterCharacter/Prefabs/PF_CCS_StarterCharacter_Visual.prefab");
+        }
+
         private static bool TrySwapVisualUnderVisualRoot(
             Transform visualRoot,
             GameObject visualPrefab,
             List<string> warnings)
         {
-            GameObject defaultVisual = AssetDatabase.LoadAssetAtPath<GameObject>(DefaultStarterVisualPrefabPath);
+            GameObject defaultVisual = TryLoadDefaultStarterVisualPrefab();
             string selectedGuid = AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(visualPrefab));
             if (defaultVisual != null && !string.IsNullOrEmpty(selectedGuid))
             {

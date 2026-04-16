@@ -27,6 +27,12 @@ namespace CCS.CharacterController.Editor
         private const string RelativeLocomotionBaseAnimatorController =
             "Animations/Controllers/AC_CCS_Locomotion_Base.controller";
 
+        private const string RelativeBasicControllerTemplatePrefab =
+            "Prefabs/PF_CCS_BasicController_Template.prefab";
+
+        private const string RelativeStarterVisualPrefab =
+            "Characters/CCS_StarterCharacter/Prefabs/PF_CCS_StarterCharacter_Visual.prefab";
+
         internal static string GetResolvedPackageRoot()
         {
             if (AssetDatabase.IsValidFolder(UpmPackageRoot))
@@ -53,6 +59,74 @@ namespace CCS.CharacterController.Editor
 
         internal static string ResolvedBasicLocomotionMinimalAnimatorControllerPath =>
             $"{GetResolvedPackageRoot()}/{CCS_BasicLocomotionMinimalControllerAuthoring.RelativeControllerPath}";
+
+        /// <summary>
+        /// Package-relative path to <c>PF_CCS_BasicController_Template.prefab</c> (UPM or embedded <c>Assets/CCS/CharacterController</c>).
+        /// </summary>
+        internal static string ResolvedBasicControllerTemplatePrefabPath =>
+            $"{GetResolvedPackageRoot()}/{RelativeBasicControllerTemplatePrefab}";
+
+        /// <summary>
+        /// Package-relative path to <c>PF_CCS_StarterCharacter_Visual.prefab</c>.
+        /// </summary>
+        internal static string ResolvedStarterVisualPrefabPath =>
+            $"{GetResolvedPackageRoot()}/{RelativeStarterVisualPrefab}";
+
+        /// <summary>
+        /// Ensures every folder segment exists for an asset path under <c>Assets/</c> or <c>Packages/</c>.
+        /// </summary>
+        internal static bool EnsureFolderHierarchyExistsForAssetPath(string assetPath)
+        {
+            string normalized = assetPath.Replace("\\", "/");
+            int lastSlash = normalized.LastIndexOf('/');
+            if (lastSlash <= 0)
+            {
+                return true;
+            }
+
+            string folder = normalized.Substring(0, lastSlash);
+            if (AssetDatabase.IsValidFolder(folder))
+            {
+                return true;
+            }
+
+            string rootPrefix;
+            string relative;
+            if (folder.StartsWith("Packages/", System.StringComparison.Ordinal))
+            {
+                rootPrefix = "Packages";
+                relative = folder.Length > "Packages/".Length ? folder.Substring("Packages/".Length) : string.Empty;
+            }
+            else if (folder.StartsWith("Assets/", System.StringComparison.Ordinal))
+            {
+                rootPrefix = "Assets";
+                relative = folder.Length > "Assets/".Length ? folder.Substring("Assets/".Length) : string.Empty;
+            }
+            else
+            {
+                return false;
+            }
+
+            string[] parts = relative.Split('/');
+            string current = rootPrefix;
+            for (int i = 0; i < parts.Length; i++)
+            {
+                if (string.IsNullOrEmpty(parts[i]))
+                {
+                    continue;
+                }
+
+                string next = current + "/" + parts[i];
+                if (!AssetDatabase.IsValidFolder(next))
+                {
+                    AssetDatabase.CreateFolder(current, parts[i]);
+                }
+
+                current = next;
+            }
+
+            return AssetDatabase.IsValidFolder(folder);
+        }
 
         // Expected path first; if missing (e.g. wrong folder after copy), finds CCS_Idle_Controller under this package.
         internal static RuntimeAnimatorController TryLoadIdleAnimatorController(out string usedAssetPath)

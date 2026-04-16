@@ -4,6 +4,16 @@ All notable changes to this package are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.1] — 2026-04-15
+
+### Fixed
+
+- **Create Basic Controller** / **Template authoring**: default prefab and input paths now use **`CCS_InputAssetUtility.GetResolvedPackageRoot()`** so **`Packages/com.crazycarrot.charactercontroller/...`** and **`Assets/CCS/CharacterController/...`** both resolve (Hub UPM install vs embedded copy).
+
+### Changed
+
+- **Repo sync**: full **`Animations`**, **`Art`**, **`Characters`**, **`Prefabs`**, **`Scenes`**, **`Scripts`**, **`Settings`** tree aligned with the embedded package layout; planning **`.md`** files mirrored under **`Documentation/`**.
+
 ## [0.3.0] — 2026-04-15
 
 ### Added

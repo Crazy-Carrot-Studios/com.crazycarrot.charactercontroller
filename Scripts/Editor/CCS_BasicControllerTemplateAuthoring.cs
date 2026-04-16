@@ -16,15 +16,6 @@ namespace CCS.CharacterController.Editor
 {
     public static class CCS_BasicControllerTemplateAuthoring
     {
-        private const string PrefabSavePath =
-            "Assets/CCS/CharacterController/Prefabs/PF_CCS_BasicController_Template.prefab";
-
-        private const string InputActionsPath =
-            "Assets/CCS/CharacterController/Settings/Input/CCS_CharacterController_InputActions.inputactions";
-
-        private const string StarterVisualPrefabPath =
-            "Assets/CCS/CharacterController/Characters/CCS_StarterCharacter/Prefabs/PF_CCS_StarterCharacter_Visual.prefab";
-
         #region Menu
 
         public static void BuildFromCommandLine()
@@ -36,15 +27,20 @@ namespace CCS.CharacterController.Editor
         [MenuItem("CCS/Character Controller/Authoring/Build PF_CCS_BasicController_Template", priority = 100)]
         private static void BuildTemplatePrefab()
         {
-            if (!EnsureFolderExists(PrefabSavePath))
+            string prefabSavePath = CCS_InputAssetUtility.ResolvedBasicControllerTemplatePrefabPath;
+            string inputActionsPath = CCS_InputAssetUtility.ResolvedPackageInputActionsPath;
+            string starterVisualPrefabPath = CCS_InputAssetUtility.ResolvedStarterVisualPrefabPath;
+
+            if (!CCS_InputAssetUtility.EnsureFolderHierarchyExistsForAssetPath(prefabSavePath))
             {
+                Debug.LogError("[CCS_BasicControllerTemplateAuthoring] Could not create folder for " + prefabSavePath);
                 return;
             }
 
-            InputActionAsset inputAsset = AssetDatabase.LoadAssetAtPath<InputActionAsset>(InputActionsPath);
+            InputActionAsset inputAsset = AssetDatabase.LoadAssetAtPath<InputActionAsset>(inputActionsPath);
             if (inputAsset == null)
             {
-                Debug.LogError("[CCS_BasicControllerTemplateAuthoring] Missing InputActionAsset at " + InputActionsPath);
+                Debug.LogError("[CCS_BasicControllerTemplateAuthoring] Missing InputActionAsset at " + inputActionsPath);
                 return;
             }
 
@@ -56,10 +52,10 @@ namespace CCS.CharacterController.Editor
                 return;
             }
 
-            GameObject starterVisualPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(StarterVisualPrefabPath);
+            GameObject starterVisualPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(starterVisualPrefabPath);
             if (starterVisualPrefab == null)
             {
-                Debug.LogError("[CCS_BasicControllerTemplateAuthoring] Missing starter visual prefab at " + StarterVisualPrefabPath);
+                Debug.LogError("[CCS_BasicControllerTemplateAuthoring] Missing starter visual prefab at " + starterVisualPrefabPath);
                 return;
             }
 
@@ -154,56 +150,14 @@ namespace CCS.CharacterController.Editor
             serializedCcs.FindProperty("driveLocomotionAnimator").boolValue = true;
             serializedCcs.ApplyModifiedPropertiesWithoutUndo();
 
-            PrefabUtility.SaveAsPrefabAsset(root, PrefabSavePath);
+            PrefabUtility.SaveAsPrefabAsset(root, prefabSavePath);
             Object.DestroyImmediate(root);
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            GameObject saved = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabSavePath);
+            GameObject saved = AssetDatabase.LoadAssetAtPath<GameObject>(prefabSavePath);
             EditorGUIUtility.PingObject(saved);
-            Debug.Log("[CCS_BasicControllerTemplateAuthoring] Wrote " + PrefabSavePath, saved);
-        }
-
-        #endregion
-
-        #region Private Methods
-
-        private static bool EnsureFolderExists(string assetPath)
-        {
-            string folder = assetPath.Replace("\\", "/");
-            int lastSlash = folder.LastIndexOf('/');
-            if (lastSlash <= 0)
-            {
-                return true;
-            }
-
-            folder = folder.Substring(0, lastSlash);
-            if (AssetDatabase.IsValidFolder(folder))
-            {
-                return true;
-            }
-
-            string parent = "Assets";
-            string remaining = folder.StartsWith("Assets/") ? folder.Substring("Assets/".Length) : folder;
-            string[] parts = remaining.Split('/');
-            string current = parent;
-            for (int i = 0; i < parts.Length; i++)
-            {
-                if (string.IsNullOrEmpty(parts[i]))
-                {
-                    continue;
-                }
-
-                string next = current + "/" + parts[i];
-                if (!AssetDatabase.IsValidFolder(next))
-                {
-                    AssetDatabase.CreateFolder(current, parts[i]);
-                }
-
-                current = next;
-            }
-
-            return AssetDatabase.IsValidFolder(folder);
+            Debug.Log("[CCS_BasicControllerTemplateAuthoring] Wrote " + prefabSavePath, saved);
         }
 
         #endregion

@@ -47,16 +47,26 @@ namespace CCS.CharacterController.Editor
         private const float ZoomSpeed = 0.05f;
         private const float FramePaddingMultiplier = 1.08f;
         private const string DefaultTemplateAssetName = "PF_CCS_BasicController_Template";
-        private static readonly string[] DefaultTemplatePreferredPaths =
-        {
-            "Assets/CCS/CharacterController/Prefabs/PF_CCS_BasicController_Template.prefab",
-        };
         private const string DefaultVisualModelAssetName = "PF_CCS_StarterCharacter_Visual";
-        private static readonly string[] DefaultVisualModelPreferredPaths =
+
+        private static string[] BuildDefaultTemplatePreferredPaths()
         {
-            "Assets/CCS/CharacterController/Characters/CCS_StarterCharacter/Prefabs/PF_CCS_StarterCharacter_Visual.prefab",
-            "Assets/CCS/CharacterController/Prefabs/PF_CCS_StarterCharacter_Visual.prefab",
-        };
+            return new[]
+            {
+                CCS_InputAssetUtility.ResolvedBasicControllerTemplatePrefabPath,
+                "Assets/CCS/CharacterController/Prefabs/PF_CCS_BasicController_Template.prefab",
+            };
+        }
+
+        private static string[] BuildDefaultVisualModelPreferredPaths()
+        {
+            return new[]
+            {
+                CCS_InputAssetUtility.ResolvedStarterVisualPrefabPath,
+                "Assets/CCS/CharacterController/Characters/CCS_StarterCharacter/Prefabs/PF_CCS_StarterCharacter_Visual.prefab",
+                "Assets/CCS/CharacterController/Prefabs/PF_CCS_StarterCharacter_Visual.prefab",
+            };
+        }
 
         #endregion
 
@@ -412,7 +422,7 @@ namespace CCS.CharacterController.Editor
 
             GameObject resolvedDefault = ResolveDefaultByName(
                 DefaultVisualModelAssetName,
-                DefaultVisualModelPreferredPaths);
+                BuildDefaultVisualModelPreferredPaths());
             if (resolvedDefault == null)
             {
                 return;
@@ -430,7 +440,7 @@ namespace CCS.CharacterController.Editor
 
             GameObject resolvedDefault = ResolveDefaultByName(
                 DefaultTemplateAssetName,
-                DefaultTemplatePreferredPaths);
+                BuildDefaultTemplatePreferredPaths());
             if (resolvedDefault == null)
             {
                 return;

@@ -1,7 +1,7 @@
 # CCS Character Controller
 
 **Package:** `com.crazycarrot.charactercontroller`  
-**Version:** `0.3.0` (`package.json`)  
+**Version:** `0.3.1` (`package.json`)  
 **Phase 1 baseline:** **Unity `CharacterController`** + **`CCS_CharacterController`** — camera-relative **walk** and **sprint** (hold Sprint while moving), gravity, smooth yaw on **`VisualRoot`**. **Cinemachine 3** orbit via **`CCS_CameraRig`** (serialized fields only; no camera profiles). Locomotion Mecanim uses **`AC_CCS_BasicLocomotion_Minimal`** (1D blend on **InputMagnitude**) on the **visual** Animator; **`driveMinimalLocomotionParameterSet`** drives **InputMagnitude**, **IsGrounded**, **IsSprinting**. Starter content: **`PF_CCS_BasicController_Template`**, **`PF_CCS_StarterCharacter_Visual`**, demo scene **`Scenes/SCN_CCS_Controller_Demo.unity`**. The legacy **Create Character** wizard remains; **Create Basic Controller** is the Invector-style shell flow. Not feature-complete; not combat-ready.
 
 ## Hub integration (CCS Hub)
@@ -38,7 +38,7 @@ You can also pin to **`#0.3.0`** if your Git tag matches the `package.json` vers
 
 ## Create flows
 
-- **CCS → Character Controller → Basic Locomotion → Create Basic Controller** — utility window: pick controller template + humanoid visual, validation, then instantiate into the open scene (minimal locomotion + optional **`CCS_CameraRig`**).
+- **CCS → Character Controller → Basic Locomotion → Create Basic Controller** — utility window: pick controller template + humanoid visual, validation, then instantiate into the open scene (minimal locomotion + optional **`CCS_CameraRig`**). With an empty **Controller template** / **Visual Model Template**, the window auto-fills defaults from **`GetResolvedPackageRoot()`** (UPM **`Packages/com.crazycarrot.charactercontroller/...`** or embedded **`Assets/CCS/CharacterController/...`**).
 - **CCS → Character Controller → Create Character** — legacy wizard: **CCSPlayer**, optional rig, **`CCS_Idle_Controller`** on **`ModelOffsetRoot`** Animators when that path is used.
 
 Tune speeds and camera in the Inspector.
